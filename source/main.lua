@@ -5,6 +5,8 @@ import "code/FoodBitmap"
 import "code/TimedChallenge"
 import "code/ChopAudio"
 import "code/PaperUI"
+import "code/GameAudio"
+import "code/IngredientTransition"
 
 local pd, gfx = playdate, playdate.graphics
 pd.display.setRefreshRate(50)
@@ -39,6 +41,8 @@ local pieces, feedback = {}, nil
 local remainingFood = foodImage
 local foodOutline = foodOutlines[foodIndex]
 local peel = nil
+local transition = IngredientTransition.new()
+local pendingFood, firstEntry, completionScheduled = nil, false, false
 local function measureRemainder(edge)
     local outline = FoodBitmap.clip(foodOutline, edge, foodX, foodY, food, true)
     return FoodBitmap.area(outline) / foodAreas[foodIndex], outline
@@ -79,6 +83,8 @@ local function loadFood(index, keepTotals)
     remainingFood = foodImage
     foodOutline = foodOutlines[foodIndex]
     pieces, feedback, bump, peel = {}, nil, 0, nil
+    transition:enter()
+    pendingFood, completionScheduled = nil, false
 end
 local function reset()
     if timed then
@@ -89,12 +95,14 @@ local function reset()
         loadFood(foodIndex, false)
     end
     calibrate()
+    firstEntry = true
+    GameAudio.scene("game")
     mode = "play"
 end
 local menu = pd.getSystemMenu()
-menu:addMenuItem("Restart", reset)
+menu:addMenuItem("Restart", function() GameAudio.select(); reset() end)
 menu:addMenuItem("Center tilt", calibrate)
-menu:addCheckmarkMenuItem("Sound", true, function(value) soundOn = value end)
+menu:addCheckmarkMenuItem("Sound", true, function(value) soundOn = value; GameAudio.setEnabled(value) end)
 calibrate()
 
 local function cut(result)
@@ -138,29 +146,28 @@ local function cut(result)
     if soundOn and food.name ~= "Tomato" then ping:playNote(450 + result.points * 5, 0.16, 0.05) end
 end
 
+GameAudio.scene("menu")
+
 local function draw()
     gfx.clear(gfx.kColorWhite)
     gfx.setColor(gfx.kColorBlack)
-    gfx.drawText(food.name, 10, 7)
-    if timed then gfx.drawTextAligned("Time " .. math.ceil(challenge.remaining) .. "s", 200, 7, kTextAlignment.center) end
-    gfx.drawTextAligned(string.format("%06d", game.score), 390, 7, kTextAlignment.right)
-    gfx.drawLine(10, 29, 390, 29)
     gfx.drawRoundRect(tuning.BOARD_LEFT, tuning.BOARD_TOP, tuning.BOARD_WIDTH, tuning.BOARD_HEIGHT, 8)
     gfx.drawLine(tuning.BOARD_LEFT + 11, tuning.BOARD_TOP + tuning.BOARD_HEIGHT - 6,
         tuning.BOARD_LEFT + tuning.BOARD_WIDTH - 12, tuning.BOARD_TOP + tuning.BOARD_HEIGHT - 6)
+    local foodDX, foodDY, knifeDX, knifeDY = transition:offsets()
     local settle = game.cooldown / tuning.FOOD_SETTLE_TIME
-    local drawX = foodX - (food.behavior == "slippery" and game.slip * settle or 0)
+    local drawX = foodX + foodDX - (food.behavior == "slippery" and game.slip * settle or 0)
     if game.squash > 0 then
         local sx, sy = 1 + game.squash * 0.5, 1 - game.squash
-        remainingFood:drawScaled(drawX - foodW * (sx - 1) / 2, foodY + foodH * (1 - sy), sx, sy)
-    else remainingFood:draw(math.floor(drawX), foodY) end
+        remainingFood:drawScaled(drawX - foodW * (sx - 1) / 2, foodY + foodDY + foodH * (1 - sy), sx, sy)
+    else remainingFood:draw(math.floor(drawX), math.floor(foodY + foodDY)) end
     for _, p in ipairs(pieces) do
         if p.crushed then
             p.image:drawScaled(p.x - p.w * 0.1, p.y + p.h * 0.4, 1.2, 0.6)
         else p.image:draw(math.floor(p.x), math.floor(p.y)) end
     end
     local x = math.floor(game.x + 0.5)
-    if game.height > 0.35 and not game.finished and not peel then
+    if not transition:active() and game.height > 0.35 and not game.finished and not peel then
         -- Guide is the actual diagonal cut on the board, not a vertical drop.
         for y = tuning.BOARD_TOP, tuning.BOARD_TOP + tuning.BOARD_HEIGHT, 4 do
             local guideX = math.floor(CuttingGeometry.cutX(x, y, food) + 0.5)
@@ -169,8 +176,8 @@ local function draw()
     end
     local knifeX, knifeY = CuttingGeometry.pose(x, game.height, food)
     if bump > 0 then knifeY = knifeY + 2 end
-    knife:draw(math.floor(knifeX - bladeX), math.floor(knifeY - bladeY))
-    if peel then
+    knife:draw(math.floor(knifeX - bladeX + knifeDX), math.floor(knifeY - bladeY + knifeDY))
+    if peel and not transition:active() then
         local elapsed = tuning.ONION_LAYER_SECONDS - peel.life
         local sway = math.sin(elapsed * 8) * 4
         -- A loose outer skin sits over the true edge and briefly hides the guide.
@@ -194,9 +201,15 @@ local function draw()
     -- Keep raised blade tips and flying slices behind the HUD, so the
     -- statistics and cutting hint stay readable above the board.
     gfx.setColor(gfx.kColorWhite)
-    gfx.fillRect(0, 30, 400, 53)
+    gfx.fillRect(0, 0, 400, 83)
     gfx.setColor(gfx.kColorBlack)
-    if feedback then
+    gfx.drawText(food.name, 10, 7)
+    if timed then gfx.drawTextAligned("Time " .. math.ceil(challenge.remaining) .. "s", 200, 7, kTextAlignment.center) end
+    gfx.drawTextAligned(string.format("%06d", game.score), 390, 7, kTextAlignment.right)
+    gfx.drawLine(10, 29, 390, 29)
+    if transition.phase=="enter" then
+        gfx.drawTextAligned("Get ready...",200,61,kTextAlignment.center)
+    elseif feedback then
         gfx.drawTextAligned(feedback.text, 200, 61, kTextAlignment.center)
     elseif game.finished then
         gfx.drawTextAligned(timed and "Done! Next vegetable..." or food.name .. " done! Take another ingredient", 200, 61, kTextAlignment.center)
@@ -213,62 +226,72 @@ local function draw()
     PaperUI.footer(timed)
 end
 
-local function drawMenu() PaperUI.foods(foodIndex) end
-local function drawModes() PaperUI.modes(modeChoice) end
-local function drawResults() PaperUI.results(game) end
+local function drawMenu() GameAudio.scene("menu"); PaperUI.foods(foodIndex) end
+local function drawModes() GameAudio.scene("menu"); PaperUI.modes(modeChoice) end
+local function drawResults() GameAudio.scene("menu"); PaperUI.results(game) end
 
 function pd.update()
     local now = pd.getCurrentTimeMilliseconds()
     local elapsed = math.max(0, (now - lastTime) / 1000)
     local dt = math.min(elapsed, 0.05)
     lastTime = now
+    GameAudio.update(elapsed)
     if mode == "modes" then
+        local previousChoice=modeChoice
         if pd.buttonJustPressed(pd.kButtonLeft) then modeChoice=1
         elseif pd.buttonJustPressed(pd.kButtonRight) then modeChoice=2
         elseif pd.buttonJustPressed(pd.kButtonDown) or pd.buttonJustPressed(pd.kButtonUp) then
             modeChoice=3-modeChoice
         end
+        if modeChoice~=previousChoice then GameAudio.select() end
         if pd.buttonJustPressed(pd.kButtonA) then
+            GameAudio.select()
             timed = modeChoice == 2
             if timed then reset(); draw() else mode = "menu"; drawMenu() end
         else drawModes() end
         return
     end
     if mode == "results" then
-        if pd.buttonJustPressed(pd.kButtonA) then reset(); draw()
-        elseif pd.buttonJustPressed(pd.kButtonB) then mode = "modes"; drawModes()
+        if pd.buttonJustPressed(pd.kButtonA) then GameAudio.select(); reset(); draw()
+        elseif pd.buttonJustPressed(pd.kButtonB) then GameAudio.select(); mode = "modes"; drawModes()
         else drawResults() end
         return
     end
     if mode == "menu" then
-        if pd.buttonJustPressed(pd.kButtonB) then mode = "modes"; drawModes(); return end
+        if pd.buttonJustPressed(pd.kButtonB) then GameAudio.select(); mode = "modes"; drawModes(); return end
         local step = 0
         if pd.buttonJustPressed(pd.kButtonDown) or pd.buttonJustPressed(pd.kButtonRight) then step = 1 end
         if pd.buttonJustPressed(pd.kButtonUp) or pd.buttonJustPressed(pd.kButtonLeft) then step = -1 end
         foodIndex = (foodIndex - 1 + step) % #Foods + 1
-        if pd.buttonJustPressed(pd.kButtonA) then reset(); mode = "play" else drawMenu(); return end
+        if step~=0 then GameAudio.select() end
+        if pd.buttonJustPressed(pd.kButtonA) then GameAudio.select(); reset(); mode = "play" else drawMenu(); return end
         -- A selected the food; don't also treat that press as a fresh-food request.
         draw()
         return
     end
-    if timed then
+    if timed and not firstEntry then
         local event = challenge:update(elapsed)
         if event == "finished" then mode = "results"; game.armed = false; drawResults(); return end
-        if event == "spawn" then loadFood(challenge:pickFood(#Foods), true) end
+        if event == "spawn" then pendingFood=challenge:pickFood(#Foods) end
     end
     if pd.buttonJustPressed(pd.kButtonB) then
+        GameAudio.select()
         mode = timed and "modes" or "menu"
         game.armed = false
         if timed then drawModes() else drawMenu() end
         return
     end
-    if not timed and pd.buttonJustPressed(pd.kButtonA) then
-        game:nextFood()
-        foodImage = foodImages[foodIndex]
-        foodW, foodH = foodImage:getSize()
-        foodX, foodY = food.x, food.y
-        remainingFood, feedback, peel, pieces = foodImage, nil, nil, {}
-        foodOutline = foodOutlines[foodIndex]
+    if not timed and not transition:active() and pd.buttonJustPressed(pd.kButtonA) then
+        GameAudio.select()
+        pendingFood=foodIndex
+        transition:exit()
+    end
+    local animationEvent=transition:update(elapsed)
+    if transition.phase=="gone" and pendingFood then loadFood(pendingFood,true) end
+    if animationEvent=="entered" then
+        firstEntry=false
+        game:syncCrank()
+        pd.getCrankChange() -- discard motion during the entry animation
     end
     if peel then
         peel.life = peel.life - dt
@@ -284,9 +307,16 @@ function pd.update()
         velocity = Chopping.clamp((math.abs(tilt) - 0.045) * 320, 0, 130) * (tilt < 0 and -1 or 1)
     end
     local crankChange = pd.getCrankChange() -- use the unaccelerated delta, even across full turns
-    local struck, result = game:update(pd.getCrankPosition(), pd.isCrankDocked(), velocity, dt, crankChange)
+    local struck, result
+    if not transition:active() then
+        struck,result=game:update(pd.getCrankPosition(),pd.isCrankDocked(),velocity,dt,crankChange)
+    end
     if struck then cut(result) end
-    if timed and game.finished then challenge:foodCompleted() end
+    if timed and game.finished and not completionScheduled then
+        challenge:foodCompleted()
+        completionScheduled=true
+        if transition.phase=="idle" then transition:exit() end
+    end
     bump = math.max(0, bump - dt)
     if feedback then
         feedback.life = feedback.life - dt
@@ -306,6 +336,12 @@ function pd.gameWillResume()
     game.armed = false
     game.peakSpeed = 0
     game:syncCrank()
+    GameAudio.resume()
 end
 
 pd.deviceDidUnlock = pd.gameWillResume
+
+function pd.gameWillPause() GameAudio.pause() end
+pd.deviceWillLock = pd.gameWillPause
+pd.deviceWillSleep = pd.gameWillPause
+function pd.gameWillTerminate() GameAudio.stop() end
