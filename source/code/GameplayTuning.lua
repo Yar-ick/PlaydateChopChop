@@ -1,4 +1,6 @@
 GameplayTuning = {
+    CHALLENGE_SECONDS = 60,
+    CHALLENGE_SPAWN_DELAY = 0.3,
     -- Crank positions in degrees. Chopping turns from upper toward lower
     -- through decreasing angles (including across 0). Keep the arc under 180.
     KNIFE_UPPER_ANGLE = 300,
@@ -15,12 +17,17 @@ GameplayTuning = {
     KNIFE_STROKE_TRAVEL = 24,
     -- Horizontal change per vertical pixel along the blade's cutting edge.
     CUT_SLOPE = -0.45,
-    CUT_REFERENCE_Y = 141,
-    CARROT_X = 64,
-    CARROT_Y = 65,
-    CARROT_SCALE = 1,
-    CARROT_BODY_START_X = 184,
-    CARROT_BODY_END_X = 316,
+    CUT_REFERENCE_Y = 160,
+    CARROT_X = 104,
+    CARROT_Y = 103,
+    CARROT_SCALE = 0.75,
+    CARROT_BODY_START_X = 194,
+    CARROT_BODY_END_X = 293,
+    -- Board rectangle; BOARD_Y remains the knife's contact height.
+    BOARD_LEFT = 34,
+    BOARD_TOP = 106,
+    BOARD_WIDTH = 332,
+    BOARD_HEIGHT = 109,
     BOARD_Y = 152,
 
     -- Ingredient mechanics. Speed is full knife travels per second.

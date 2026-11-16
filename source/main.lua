@@ -2,13 +2,15 @@ import "CoreLibs/graphics"
 import "code/Chopping"
 import "code/CuttingGeometry"
 import "code/FoodBitmap"
+import "code/TimedChallenge"
 
 local pd, gfx = playdate, playdate.graphics
 pd.display.setRefreshRate(50)
 pd.startAccelerometer()
 math.randomseed(pd.getSecondsSinceEpoch())
 local tuning = GameplayTuning
-local foodIndex, mode = 1, "menu"
+local foodIndex, mode = 1, "modes"
+local modeChoice, timed, challenge = 1, false, nil
 local food = Foods[foodIndex]
 local foodImages, previews, foodOutlines = {}, {}, {}
 for i, item in ipairs(Foods) do
@@ -53,16 +55,29 @@ end
 local function message(text)
     feedback = {text = text, life = 1.15}
 end
-local function reset()
+local function loadFood(index, keepTotals)
+    local score, cuts, chopped = game.score, game.cuts, game.foodsChopped
+    foodIndex = index
     food = Foods[foodIndex]
     foodImage = foodImages[foodIndex]
     foodW, foodH = foodImage:getSize()
     foodX, foodY = food.x, food.y
     game = Chopping.new(food)
+    if keepTotals then game.score, game.cuts, game.foodsChopped = score, cuts, chopped end
     remainingFood = foodImage
     foodOutline = foodOutlines[foodIndex]
     pieces, feedback, bump, peel = {}, nil, 0, nil
+end
+local function reset()
+    if timed then
+        challenge = TimedChallenge.new()
+        loadFood(challenge:pickFood(#Foods), false)
+    else
+        challenge = nil
+        loadFood(foodIndex, false)
+    end
     calibrate()
+    mode = "play"
 end
 local menu = pd.getSystemMenu()
 menu:addMenuItem("Restart", reset)
@@ -111,10 +126,12 @@ local function draw()
     gfx.clear(gfx.kColorWhite)
     gfx.setColor(gfx.kColorBlack)
     gfx.drawText(food.name, 10, 7)
+    if timed then gfx.drawTextAligned("Time " .. math.ceil(challenge.remaining) .. "s", 200, 7, kTextAlignment.center) end
     gfx.drawTextAligned(string.format("%06d", game.score), 390, 7, kTextAlignment.right)
     gfx.drawLine(10, 29, 390, 29)
-    gfx.drawRoundRect(34, 106, 332, 109, 8)
-    gfx.drawLine(45, 209, 354, 209)
+    gfx.drawRoundRect(tuning.BOARD_LEFT, tuning.BOARD_TOP, tuning.BOARD_WIDTH, tuning.BOARD_HEIGHT, 8)
+    gfx.drawLine(tuning.BOARD_LEFT + 11, tuning.BOARD_TOP + tuning.BOARD_HEIGHT - 6,
+        tuning.BOARD_LEFT + tuning.BOARD_WIDTH - 12, tuning.BOARD_TOP + tuning.BOARD_HEIGHT - 6)
     local settle = game.cooldown / tuning.FOOD_SETTLE_TIME
     local drawX = foodX - (food.behavior == "slippery" and game.slip * settle or 0)
     if game.squash > 0 then
@@ -129,9 +146,9 @@ local function draw()
     local x = math.floor(game.x + 0.5)
     if game.height > 0.35 and not game.finished and not peel then
         -- Guide is the actual diagonal cut on the board, not a vertical drop.
-        for y = food.referenceY - 22, food.referenceY + 24, 4 do
+        for y = tuning.BOARD_TOP, tuning.BOARD_TOP + tuning.BOARD_HEIGHT, 4 do
             local guideX = math.floor(CuttingGeometry.cutX(x, y, food) + 0.5)
-            gfx.drawLine(guideX, y, guideX, y + 1)
+            gfx.drawLine(guideX, y, guideX, math.min(y + 1, tuning.BOARD_TOP + tuning.BOARD_HEIGHT))
         end
     end
     local knifeX, knifeY = CuttingGeometry.pose(x, game.height, food)
@@ -158,20 +175,26 @@ local function draw()
             gfx.drawLine(tx, ty - 10, tx + 3, ty - 3)
         end
     end
+    -- Keep raised blade tips and flying slices behind the HUD, so the
+    -- statistics and cutting hint stay readable above the board.
+    gfx.setColor(gfx.kColorWhite)
+    gfx.fillRect(0, 30, 400, 53)
+    gfx.setColor(gfx.kColorBlack)
     if feedback then
-        gfx.drawTextAligned(feedback.text, 200, 49, kTextAlignment.center)
+        gfx.drawTextAligned(feedback.text, 200, 61, kTextAlignment.center)
     elseif game.finished then
-        gfx.drawTextAligned(food.name .. " done!  A: next", 200, 49, kTextAlignment.center)
+        gfx.drawTextAligned(timed and "Done! Next vegetable..." or food.name .. " done!  A: next", 200, 61, kTextAlignment.center)
     elseif pd.isCrankDocked() then
-        gfx.drawTextAligned("Undock crank to chop", 200, 49, kTextAlignment.center)
+        gfx.drawTextAligned("Undock crank to chop", 200, 61, kTextAlignment.center)
     else
         gfx.drawTextAligned(game.armed and "Aim a thin slice, then lower" or
             string.format("Raise to %.0f to ready the knife", GameplayTuning.KNIFE_UPPER_ANGLE),
-            200, 49, kTextAlignment.center)
+            200, 61, kTextAlignment.center)
     end
-    gfx.drawTextAligned(string.format("Cuts %d   Chopped %d", game.cuts, game.foodsChopped), 352, 173, kTextAlignment.right)
-    gfx.drawTextAligned(string.format("%d deg", math.floor(pd.getCrankPosition())), 352, 193, kTextAlignment.right)
-    gfx.drawTextAligned("Tilt / L R: move   B: foods   A: fresh", 200, 222, kTextAlignment.center)
+    gfx.drawText("Cuts " .. game.cuts, 10, 34)
+    gfx.drawTextAligned("Chopped " .. game.foodsChopped, 200, 34, kTextAlignment.center)
+    gfx.drawTextAligned(string.format("%d deg", math.floor(pd.getCrankPosition())), 390, 34, kTextAlignment.right)
+    gfx.drawTextAligned(timed and "Tilt / L R: move   B: quit" or "Tilt / L R: move   B: foods   A: fresh", 200, 222, kTextAlignment.center)
 end
 
 local function drawMenu()
@@ -191,14 +214,62 @@ local function drawMenu()
     previews[foodIndex]:drawCentered(282, 112)
     gfx.drawTextInRect(Foods[foodIndex].hint, 190, 166, 190, 35)
     gfx.drawLine(20, 205, 380, 205)
-    gfx.drawTextAligned("D-pad: choose    A: chop", 200, 218, kTextAlignment.center)
+    gfx.drawTextAligned("D-pad: food   A: chop   B: modes", 200, 218, kTextAlignment.center)
+end
+
+local function drawModes()
+    gfx.clear(gfx.kColorWhite)
+    gfx.setColor(gfx.kColorBlack)
+    gfx.drawTextAligned("CHOP CHOP", 200, 16, kTextAlignment.center)
+    gfx.drawTextAligned("Choose game mode", 200, 47, kTextAlignment.center)
+    local labels = {"Free chopping", "60-second rush"}
+    for i,label in ipairs(labels) do
+        local y=87+(i-1)*44
+        if i==modeChoice then
+            gfx.fillRoundRect(65,y-7,270,34,6)
+            gfx.setImageDrawMode(gfx.kDrawModeFillWhite)
+        end
+        gfx.drawTextAligned(label,200,y,kTextAlignment.center)
+        gfx.setImageDrawMode(gfx.kDrawModeCopy)
+    end
+    gfx.drawTextAligned(modeChoice==1 and "Choose a food. Practice at your pace." or "Random vegetables. Score in 60 seconds!",200,181,kTextAlignment.center)
+    gfx.drawTextAligned("D-pad: choose    A: start",200,218,kTextAlignment.center)
+end
+local function drawResults()
+    gfx.clear(gfx.kColorWhite)
+    gfx.setColor(gfx.kColorBlack)
+    gfx.drawTextAligned("TIME'S UP!",200,30,kTextAlignment.center)
+    gfx.drawRoundRect(55,65,290,118,8)
+    gfx.drawTextAligned("Score: "..game.score,200,84,kTextAlignment.center)
+    gfx.drawTextAligned("Vegetables chopped: "..game.foodsChopped,200,116,kTextAlignment.center)
+    gfx.drawTextAligned("Slices: "..game.cuts,200,146,kTextAlignment.center)
+    gfx.drawTextAligned("A: try again    B: main menu",200,216,kTextAlignment.center)
 end
 
 function pd.update()
     local now = pd.getCurrentTimeMilliseconds()
-    local dt = math.min((now - lastTime) / 1000, 0.05)
+    local elapsed = math.max(0, (now - lastTime) / 1000)
+    local dt = math.min(elapsed, 0.05)
     lastTime = now
+    if mode == "modes" then
+        if pd.buttonJustPressed(pd.kButtonDown) or pd.buttonJustPressed(pd.kButtonRight)
+            or pd.buttonJustPressed(pd.kButtonUp) or pd.buttonJustPressed(pd.kButtonLeft) then
+            modeChoice = 3 - modeChoice
+        end
+        if pd.buttonJustPressed(pd.kButtonA) then
+            timed = modeChoice == 2
+            if timed then reset(); draw() else mode = "menu"; drawMenu() end
+        else drawModes() end
+        return
+    end
+    if mode == "results" then
+        if pd.buttonJustPressed(pd.kButtonA) then reset(); draw()
+        elseif pd.buttonJustPressed(pd.kButtonB) then mode = "modes"; drawModes()
+        else drawResults() end
+        return
+    end
     if mode == "menu" then
+        if pd.buttonJustPressed(pd.kButtonB) then mode = "modes"; drawModes(); return end
         local step = 0
         if pd.buttonJustPressed(pd.kButtonDown) or pd.buttonJustPressed(pd.kButtonRight) then step = 1 end
         if pd.buttonJustPressed(pd.kButtonUp) or pd.buttonJustPressed(pd.kButtonLeft) then step = -1 end
@@ -208,13 +279,18 @@ function pd.update()
         draw()
         return
     end
+    if timed then
+        local event = challenge:update(elapsed)
+        if event == "finished" then mode = "results"; game.armed = false; drawResults(); return end
+        if event == "spawn" then loadFood(challenge:pickFood(#Foods), true) end
+    end
     if pd.buttonJustPressed(pd.kButtonB) then
-        mode = "menu"
+        mode = timed and "modes" or "menu"
         game.armed = false
-        drawMenu()
+        if timed then drawModes() else drawMenu() end
         return
     end
-    if pd.buttonJustPressed(pd.kButtonA) then
+    if not timed and pd.buttonJustPressed(pd.kButtonA) then
         game:nextFood()
         foodImage = foodImages[foodIndex]
         foodW, foodH = foodImage:getSize()
@@ -237,6 +313,7 @@ function pd.update()
     end
     local struck, result = game:update(pd.getCrankPosition(), pd.isCrankDocked(), velocity, dt)
     if struck then cut(result) end
+    if timed and game.finished then challenge:foodCompleted() end
     bump = math.max(0, bump - dt)
     if feedback then
         feedback.life = feedback.life - dt
@@ -256,3 +333,5 @@ function pd.gameWillResume()
     game.armed = false
     game.peakSpeed = 0
 end
+
+pd.deviceDidUnlock = pd.gameWillResume
