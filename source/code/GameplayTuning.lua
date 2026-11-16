@@ -23,6 +23,18 @@ GameplayTuning = {
     CARROT_BODY_END_X = 316,
     BOARD_Y = 152,
 
+    -- Ingredient mechanics. Speed is full knife travels per second.
+    TOMATO_MAX_SPEED = 3,
+    TOMATO_CRUSH_MULTIPLIER = 0.35,
+    CUCUMBER_SLIP_MIN = 4,
+    CUCUMBER_SLIP_MAX = 10,
+    CUCUMBER_MAX_OFFSET = 24,
+    POTATO_ROLL_CHANCE = 70,
+    POTATO_MAX_ROLL = 9,
+    FOOD_SETTLE_TIME = 0.18,
+    ONION_LAYER_EVERY = 3,
+    ONION_LAYER_SECONDS = 1.8,
+
     -- Degrees of tolerance around the working arc and raised position.
     CRANK_OVERSHOOT = 30,
     READY_BELOW_UPPER = 25,

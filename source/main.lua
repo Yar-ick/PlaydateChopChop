@@ -1,19 +1,22 @@
 import "CoreLibs/graphics"
 import "code/Chopping"
 import "code/CuttingGeometry"
+import "code/FoodBitmap"
 
 local pd, gfx = playdate, playdate.graphics
 pd.display.setRefreshRate(50)
 pd.startAccelerometer()
+math.randomseed(pd.getSecondsSinceEpoch())
 local tuning = GameplayTuning
 local foodIndex, mode = 1, "menu"
 local food = Foods[foodIndex]
-local foodImages, previews = {}, {}
+local foodImages, previews, foodOutlines = {}, {}, {}
 for i, item in ipairs(Foods) do
     local source = assert(gfx.image.new(item.path))
     foodImages[i] = source:scaledImage(item.scale)
+    if item.behavior == "rolling" then foodOutlines[i] = FoodBitmap.outline(foodImages[i]) end
     local w, h = source:getSize()
-    previews[i] = source:scaledImage(math.min(180 / w, 115 / h))
+    previews[i] = source:scaledImage(math.min(165 / w, 85 / h))
 end
 local foodImage = foodImages[foodIndex]
 local foodW, foodH = foodImage:getSize()
@@ -26,25 +29,13 @@ local foodX, foodY = food.x, food.y
 local game = Chopping.new(food)
 local pieces, feedback = {}, nil
 local remainingFood = foodImage
+local foodOutline = foodOutlines[foodIndex]
+local peel = nil
 
 -- Bake parallel diagonal boundaries only when a cut changes the food.
 -- This same mask makes the falling slice and remaining food meet exactly.
 local function foodSection(left, right)
-    local section = gfx.image.new(foodW, foodH, gfx.kColorClear)
-    gfx.pushContext(section)
-    for row = 0, foodH - 1 do
-        local y = foodY + row
-        local first = left and math.ceil(CuttingGeometry.cutX(left, y, food) - foodX) or 0
-        local last = right and math.ceil(CuttingGeometry.cutX(right, y, food) - foodX) or foodW
-        first, last = math.max(0, first), math.min(foodW, last)
-        if last > first then
-            gfx.setClipRect(first, row, last - first, 1)
-            foodImage:draw(0, 0)
-        end
-    end
-    gfx.clearClipRect()
-    gfx.popContext()
-    return section
+    return FoodBitmap.section(foodImage, foodX, foodY, food, left, right)
 end
 local tiltZero, tilt = 0, 0
 local soundOn = true
@@ -69,7 +60,8 @@ local function reset()
     foodX, foodY = food.x, food.y
     game = Chopping.new(food)
     remainingFood = foodImage
-    pieces, feedback, bump = {}, nil, 0
+    foodOutline = foodOutlines[foodIndex]
+    pieces, feedback, bump, peel = {}, nil, 0, nil
     calibrate()
 end
 local menu = pd.getSystemMenu()
@@ -86,11 +78,31 @@ local function cut(result)
         return
     end
     local width = result.width
-    local oldEdge = result.x + width
-    local img = foodSection(result.x, oldEdge < food.endX and oldEdge or nil)
-    remainingFood = foodSection(nil, result.x)
+    local img, nextRemaining = FoodBitmap.split(foodImage, foodX, foodY, food, result.x)
+    if result.peel then
+        peel = {image = foodSection(result.x - 8, result.x), x = foodX, y = foodY,
+            edge = result.x, life = tuning.ONION_LAYER_SECONDS}
+    end
     pieces[#pieces + 1] = {image = img, x = foodX, y = foodY,
-        vx = 28 + math.random() * 35, vy = -35, age = 0}
+        vx = 28 + math.random() * 35, vy = -35, age = 0, crushed = result.crushed, w = foodW, h = foodH}
+    foodImage, remainingFood = nextRemaining, nextRemaining
+    if result.shift then foodX = foodX + result.shift end
+    if foodOutline then foodOutline = FoodBitmap.clip(foodOutline, result.x, foodX, foodY, food, true) end
+    if result.rotation then
+        -- Crop first so repeated rolls cannot accumulate transparent padding.
+        local ignoredFirst, ignoredLast
+        foodImage, foodX, foodY, ignoredFirst, ignoredLast, foodOutline = FoodBitmap.fit(foodImage, foodX, foodY, food, foodOutline)
+        foodW, foodH = foodImage:getSize()
+        local rotated = foodImage:rotatedImage(result.rotation)
+        local rw, rh = rotated:getSize()
+        foodOutline = FoodBitmap.rotateOutline(foodOutline, result.rotation, foodW, foodH, rw, rh)
+        local first, last
+        foodImage, foodX, foodY, first, last, foodOutline = FoodBitmap.fit(rotated,
+            math.floor(foodX + (foodW - rw) / 2), math.floor(foodY + (foodH - rh) / 2), food, foodOutline)
+        foodW, foodH = foodImage:getSize()
+        remainingFood = foodImage
+        game:setBounds(first, last)
+    end
     message(string.format("%s  +%d  (%dpx)", result.label, result.points, width))
     if soundOn then ping:playNote(450 + result.points * 5, 0.16, 0.05) end
 end
@@ -103,10 +115,19 @@ local function draw()
     gfx.drawLine(10, 29, 390, 29)
     gfx.drawRoundRect(34, 106, 332, 109, 8)
     gfx.drawLine(45, 209, 354, 209)
-    remainingFood:draw(foodX, foodY)
-    for _, p in ipairs(pieces) do p.image:draw(math.floor(p.x), math.floor(p.y)) end
+    local settle = game.cooldown / tuning.FOOD_SETTLE_TIME
+    local drawX = foodX - (food.behavior == "slippery" and game.slip * settle or 0)
+    if game.squash > 0 then
+        local sx, sy = 1 + game.squash * 0.5, 1 - game.squash
+        remainingFood:drawScaled(drawX - foodW * (sx - 1) / 2, foodY + foodH * (1 - sy), sx, sy)
+    else remainingFood:draw(math.floor(drawX), foodY) end
+    for _, p in ipairs(pieces) do
+        if p.crushed then
+            p.image:drawScaled(p.x - p.w * 0.1, p.y + p.h * 0.4, 1.2, 0.6)
+        else p.image:draw(math.floor(p.x), math.floor(p.y)) end
+    end
     local x = math.floor(game.x + 0.5)
-    if game.height > 0.35 and not game.finished then
+    if game.height > 0.35 and not game.finished and not peel then
         -- Guide is the actual diagonal cut on the board, not a vertical drop.
         for y = food.referenceY - 22, food.referenceY + 24, 4 do
             local guideX = math.floor(CuttingGeometry.cutX(x, y, food) + 0.5)
@@ -116,6 +137,27 @@ local function draw()
     local knifeX, knifeY = CuttingGeometry.pose(x, game.height, food)
     if bump > 0 then knifeY = knifeY + 2 end
     knife:draw(math.floor(knifeX - bladeX), math.floor(knifeY - bladeY))
+    if peel then
+        local elapsed = tuning.ONION_LAYER_SECONDS - peel.life
+        local sway = math.sin(elapsed * 8) * 4
+        -- A loose outer skin sits over the true edge and briefly hides the guide.
+        gfx.setColor(gfx.kColorWhite)
+        gfx.fillEllipseInRect(peel.edge - 10 + sway, food.referenceY - 23, 22, 43)
+        gfx.setColor(gfx.kColorBlack)
+        gfx.drawEllipseInRect(peel.edge - 10 + sway, food.referenceY - 23, 22, 43)
+        gfx.drawEllipseInRect(peel.edge - 6 + sway, food.referenceY - 20, 14, 37)
+        peel.image:draw(peel.x + sway + 4, peel.y - elapsed * 3)
+        for i = 1, 3 do
+            local ty = 65 + ((elapsed * 65 + i * 39) % 125)
+            local tx = i % 2 == 0 and 372 or 22
+            gfx.setColor(gfx.kColorWhite)
+            gfx.fillCircleAtPoint(tx, ty, 4)
+            gfx.setColor(gfx.kColorBlack)
+            gfx.drawCircleAtPoint(tx, ty, 4)
+            gfx.drawLine(tx - 3, ty - 3, tx, ty - 10)
+            gfx.drawLine(tx, ty - 10, tx + 3, ty - 3)
+        end
+    end
     if feedback then
         gfx.drawTextAligned(feedback.text, 200, 49, kTextAlignment.center)
     elseif game.finished then
@@ -138,15 +180,16 @@ local function drawMenu()
     gfx.drawTextAligned("CHOP CHOP", 200, 12, kTextAlignment.center)
     gfx.drawTextAligned("Choose what to chop", 200, 39, kTextAlignment.center)
     for i, item in ipairs(Foods) do
-        local y = 81 + (i - 1) * 37
+        local y = 73 + (i - 1) * 25
         if i == foodIndex then
-            gfx.fillRoundRect(20, y - 5, 150, 31, 5)
+            gfx.fillRoundRect(20, y - 5, 150, 24, 5)
             gfx.setImageDrawMode(gfx.kDrawModeFillWhite)
         end
         gfx.drawText(item.name, 35, y)
         gfx.setImageDrawMode(gfx.kDrawModeCopy)
     end
-    previews[foodIndex]:drawCentered(282, 131)
+    previews[foodIndex]:drawCentered(282, 112)
+    gfx.drawTextInRect(Foods[foodIndex].hint, 190, 166, 190, 35)
     gfx.drawLine(20, 205, 380, 205)
     gfx.drawTextAligned("D-pad: choose    A: chop", 200, 218, kTextAlignment.center)
 end
@@ -171,7 +214,18 @@ function pd.update()
         drawMenu()
         return
     end
-    if pd.buttonJustPressed(pd.kButtonA) then game:nextFood(); remainingFood = foodImage; feedback = nil end
+    if pd.buttonJustPressed(pd.kButtonA) then
+        game:nextFood()
+        foodImage = foodImages[foodIndex]
+        foodW, foodH = foodImage:getSize()
+        foodX, foodY = food.x, food.y
+        remainingFood, feedback, peel, pieces = foodImage, nil, nil, {}
+        foodOutline = foodOutlines[foodIndex]
+    end
+    if peel then
+        peel.life = peel.life - dt
+        if peel.life <= 0 then peel = nil end
+    end
     local ax = (pd.readAccelerometer() or tiltZero) - tiltZero
     tilt = tilt + (ax - tilt) * math.min(1, dt * 12)
     local direction = 0
@@ -200,4 +254,5 @@ end
 function pd.gameWillResume()
     lastTime = pd.getCurrentTimeMilliseconds()
     game.armed = false
+    game.peakSpeed = 0
 end
