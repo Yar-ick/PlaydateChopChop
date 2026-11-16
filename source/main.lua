@@ -3,6 +3,7 @@ import "code/Chopping"
 import "code/CuttingGeometry"
 import "code/FoodBitmap"
 import "code/TimedChallenge"
+import "code/ChopAudio"
 
 local pd, gfx = playdate, playdate.graphics
 pd.display.setRefreshRate(50)
@@ -87,7 +88,11 @@ calibrate()
 
 local function cut(result)
     bump = 0.09
-    if soundOn then thud:playNote(110, 0.45, 0.04) end
+    if soundOn then
+        -- Keep carrot and empty board taps exactly as before.
+        if not result or food.name == "Carrot" then thud:playNote(110, 0.45, 0.04)
+        else ChopAudio.play(food.name, result.crushed) end
+    end
     if not result then
         message("Miss - aim inside the food")
         return
@@ -119,7 +124,7 @@ local function cut(result)
         game:setBounds(first, last)
     end
     message(string.format("%s  +%d  (%dpx)", result.label, result.points, width))
-    if soundOn then ping:playNote(450 + result.points * 5, 0.16, 0.05) end
+    if soundOn and food.name ~= "Tomato" then ping:playNote(450 + result.points * 5, 0.16, 0.05) end
 end
 
 local function draw()

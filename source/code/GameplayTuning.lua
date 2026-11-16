@@ -1,4 +1,6 @@
 GameplayTuning = {
+    CHOP_SAMPLE_VOLUME = 0.65,
+    CHOP_PITCH_VARIATION = 0.06,
     CHALLENGE_SECONDS = 60,
     CHALLENGE_SPAWN_DELAY = 0.3,
     -- Crank positions in degrees. Chopping turns from upper toward lower
