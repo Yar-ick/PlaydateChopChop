@@ -1,0 +1,6 @@
+name=Chop Chop
+author=Nikita Yaroslavtsev
+description=A crank-controlled food chopping prototype.
+bundleID=com.yarick.chopchop
+version=0.1.0
+buildNumber=1

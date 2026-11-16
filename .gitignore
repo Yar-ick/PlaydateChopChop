@@ -1,0 +1,44 @@
+### Windows
+# Windows thumbnail cache files
+Thumbs.db
+
+# Folder config file
+[Dd]esktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# Windows shortcuts
+*.lnk
+
+### VS Code
+# VSCode settings (keep shared configuration)
+.vscode/*
+
+# Local History for Visual Studio Code
+.history/
+
+# Playdate Builds
+builds/
+
+# Temp files
+tmp/
+tools/
+
+# Built Visual Studio Code Extensions
+*.vsix
+
+# Power Shell scripts
+*.ps1
+!tests/BuildTests.ps1
+
+# Sentry
+.sentry-native/
+
+# Raw assets
+raw/
+
+# Folder with some temp files from Playdate
+main.pdx
+PlaydateChopChop.pdx
+tests
