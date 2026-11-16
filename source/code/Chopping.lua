@@ -16,6 +16,8 @@ end
 function Chopping:nextFood()
     self.startX, self.endX = self.food.startX, self.food.endX
     self.edge, self.x = self.endX, self.endX - 10
+    self.initialWidth, self.remainingFraction = self.endX - self.startX, 1
+    self:syncCrank()
     self.finished, self.armed, self.height = false, false, 1
     self.offsetX, self.rotation, self.peakSpeed, self.squash = 0, 0, 0, 0
     self.cooldown, self.slip, self.ingredientCuts = 0, 0, 0
@@ -23,26 +25,34 @@ end
 function Chopping:setBounds(first, last)
     self.startX, self.edge, self.endX = first, last, last
 end
-function Chopping:update(angle, docked, velocity, dt)
+-- Ignore stale crank movement when entering play, changing food, or resuming.
+function Chopping:syncCrank()
+    self.lastCrankAngle, self.wasDocked = nil, false
+end
+function Chopping:update(angle, docked, velocity, dt, crankChange)
     dt = math.max(dt, 0.001)
     self.cooldown = math.max(0, self.cooldown - dt)
     self.squash = math.max(0, self.squash - dt * 0.6)
     local previousHeight = self.height
     angle = angle % 360
-    local span = (tuning.KNIFE_UPPER_ANGLE - tuning.KNIFE_LOWER_ANGLE) % 360
-    assert(span > 0 and span < 180, "Knife crank arc must be between 0 and 180 degrees")
-    local halfSpan = span / 2
-    local relative = (angle - tuning.KNIFE_LOWER_ANGLE - halfSpan + 180) % 360 - 180
-    self.height = (Chopping.clamp(relative, -halfSpan, halfSpan) + halfSpan) / span
+    local delta = 0
+    if self.lastCrankAngle ~= nil and not self.wasDocked and not docked then
+        delta = crankChange
+        if delta == nil then delta = (angle - self.lastCrankAngle + 180) % 360 - 180 end
+    end
+    self.lastCrankAngle, self.wasDocked = angle, docked
+    local travel = tuning.KNIFE_TRAVEL_ANGLE
+    assert(travel > 0, "Knife travel angle must be positive")
+    -- Clamp the accumulated knife position, not the crank position. There is
+    -- no stored overshoot to unwind at the top or bottom of the stroke.
+    self.height = Chopping.clamp(self.height + delta / travel, 0, 1)
     if docked then self.height = 1; self.armed = false; self.peakSpeed = 0 end
     if self.height > 0.38 then
         self.x = Chopping.clamp(self.x + velocity * dt, self.startX - 6, self.endX + 20)
     end
     if docked or self.finished then return false end
-    if math.abs(relative) > halfSpan + tuning.CRANK_OVERSHOOT then self.armed = false end
-    local readyBelow = math.min(tuning.READY_BELOW_UPPER, span * 0.28)
-    if relative >= halfSpan - readyBelow and relative <= halfSpan + tuning.READY_ABOVE_UPPER then
-        if not self.armed then self.peakSpeed = 0 end
+    if self.height >= tuning.KNIFE_READY_HEIGHT then
+        if not self.armed or delta > 0 then self.peakSpeed = 0 end
         self.armed = true
     end
     if self.armed then
@@ -69,7 +79,12 @@ function Chopping:update(angle, docked, velocity, dt)
     self.edge = x
     self.score, self.cuts = self.score + result.points, self.cuts + 1
     self.ingredientCuts = self.ingredientCuts + 1
-    if self.edge <= self.startX + 4 then
+    local remaining, outline
+    if self.measureRemainder then remaining, outline = self.measureRemainder(x)
+    else remaining = (self.edge - self.startX) / self.initialWidth end
+    self.remainingFraction = Chopping.clamp(remaining, 0, 1)
+    result.remainingOutline = outline
+    if self.remainingFraction <= tuning.FOOD_COMPLETION_FRACTION + 1e-9 then
         self.finished = true
         self.foodsChopped = self.foodsChopped + 1
     elseif self.food.behavior == "slippery" then

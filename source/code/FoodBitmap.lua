@@ -148,3 +148,17 @@ function FoodBitmap.fit(image, x, y, food, points)
     for i = 1, #points, 2 do shifted[i], shifted[i+1] = points[i]-left, points[i+1]-top end
     return cropped, x+left, y+top, math.floor(first), math.ceil(last), shifted
 end
+
+-- Area follows the cached edible silhouette through clipping and rolling;
+-- no bitmap reads or dependence on the potato's changing bounding-box width.
+function FoodBitmap.area(points)
+    if #points < 6 then return 0 end
+    local area = 0
+    local px, py = points[#points-1], points[#points]
+    for i = 1, #points, 2 do
+        local x, y = points[i], points[i+1]
+        area = area + px*y - x*py
+        px, py = x, y
+    end
+    return math.abs(area) * 0.5
+end

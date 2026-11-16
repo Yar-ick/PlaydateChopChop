@@ -13,11 +13,14 @@ local tuning = GameplayTuning
 local foodIndex, mode = 1, "modes"
 local modeChoice, timed, challenge = 1, false, nil
 local food = Foods[foodIndex]
-local foodImages, previews, foodOutlines = {}, {}, {}
+local foodImages, previews, foodOutlines, foodAreas = {}, {}, {}, {}
 for i, item in ipairs(Foods) do
     local source = assert(gfx.image.new(item.path))
     foodImages[i] = source:scaledImage(item.scale)
-    if item.behavior == "rolling" then foodOutlines[i] = FoodBitmap.outline(foodImages[i]) end
+    local outline = FoodBitmap.outline(foodImages[i])
+    -- Ignore inedible leaves/stems when deciding whether 5% remains.
+    foodOutlines[i] = FoodBitmap.clip(outline, item.startX, item.x, item.y, item, false)
+    foodAreas[i] = math.max(1, FoodBitmap.area(foodOutlines[i]))
     local w, h = source:getSize()
     previews[i] = source:scaledImage(math.min(165 / w, 85 / h))
 end
@@ -34,6 +37,11 @@ local pieces, feedback = {}, nil
 local remainingFood = foodImage
 local foodOutline = foodOutlines[foodIndex]
 local peel = nil
+local function measureRemainder(edge)
+    local outline = FoodBitmap.clip(foodOutline, edge, foodX, foodY, food, true)
+    return FoodBitmap.area(outline) / foodAreas[foodIndex], outline
+end
+game.measureRemainder = measureRemainder
 
 -- Bake parallel diagonal boundaries only when a cut changes the food.
 -- This same mask makes the falling slice and remaining food meet exactly.
@@ -64,6 +72,7 @@ local function loadFood(index, keepTotals)
     foodW, foodH = foodImage:getSize()
     foodX, foodY = food.x, food.y
     game = Chopping.new(food)
+    game.measureRemainder = measureRemainder
     if keepTotals then game.score, game.cuts, game.foodsChopped = score, cuts, chopped end
     remainingFood = foodImage
     foodOutline = foodOutlines[foodIndex]
@@ -107,7 +116,7 @@ local function cut(result)
         vx = 28 + math.random() * 35, vy = -35, age = 0, crushed = result.crushed, w = foodW, h = foodH}
     foodImage, remainingFood = nextRemaining, nextRemaining
     if result.shift then foodX = foodX + result.shift end
-    if foodOutline then foodOutline = FoodBitmap.clip(foodOutline, result.x, foodX, foodY, food, true) end
+    foodOutline = result.remainingOutline or FoodBitmap.clip(foodOutline, result.x, foodX, foodY, food, true)
     if result.rotation then
         -- Crop first so repeated rolls cannot accumulate transparent padding.
         local ignoredFirst, ignoredLast
@@ -193,7 +202,7 @@ local function draw()
         gfx.drawTextAligned("Undock crank to chop", 200, 61, kTextAlignment.center)
     else
         gfx.drawTextAligned(game.armed and "Aim a thin slice, then lower" or
-            string.format("Raise to %.0f to ready the knife", GameplayTuning.KNIFE_UPPER_ANGLE),
+            "Clockwise: lift / counterclockwise: cut",
             200, 61, kTextAlignment.center)
     end
     gfx.drawText("Cuts " .. game.cuts, 10, 34)
@@ -316,7 +325,8 @@ function pd.update()
     if direction == 0 and math.abs(tilt) > 0.045 then
         velocity = Chopping.clamp((math.abs(tilt) - 0.045) * 320, 0, 130) * (tilt < 0 and -1 or 1)
     end
-    local struck, result = game:update(pd.getCrankPosition(), pd.isCrankDocked(), velocity, dt)
+    local crankChange = pd.getCrankChange() -- use the unaccelerated delta, even across full turns
+    local struck, result = game:update(pd.getCrankPosition(), pd.isCrankDocked(), velocity, dt, crankChange)
     if struck then cut(result) end
     if timed and game.finished then challenge:foodCompleted() end
     bump = math.max(0, bump - dt)
@@ -337,6 +347,7 @@ function pd.gameWillResume()
     lastTime = pd.getCurrentTimeMilliseconds()
     game.armed = false
     game.peakSpeed = 0
+    game:syncCrank()
 end
 
 pd.deviceDidUnlock = pd.gameWillResume

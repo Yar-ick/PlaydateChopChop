@@ -6,7 +6,17 @@ function TimedChallenge.new(random)
         running = true, random = random or math.random}, TimedChallenge)
 end
 function TimedChallenge:pickFood(count)
-    return self.random(1, count)
+    assert(count >= 1, "At least one food is required")
+    local excluded = self.lastFood
+    local nextFood
+    if count == 1 then nextFood = 1
+    elseif excluded and excluded <= count then
+        -- Uniformly choose among the other foods, without retry loops.
+        nextFood = self.random(1, count - 1)
+        if nextFood >= excluded then nextFood = nextFood + 1 end
+    else nextFood = self.random(1, count) end
+    self.lastFood = nextFood
+    return nextFood
 end
 function TimedChallenge:foodCompleted()
     if self.running and not self.spawnIn then self.spawnIn = GameplayTuning.CHALLENGE_SPAWN_DELAY end
