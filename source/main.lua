@@ -33,6 +33,14 @@ local foodW, foodH = foodImage:getSize()
 local knife = assert(gfx.image.new("images/Knife")):rotatedImage(
     tuning.KNIFE_IMAGE_ROTATION, tuning.KNIFE_IMAGE_SCALE)
 local knifeW, knifeH = knife:getSize()
+local boardSource = assert(gfx.image.new("images/CuttingBoard"))
+local boardW, boardH = boardSource:getSize()
+local boardScale = math.min(tuning.BOARD_HEIGHT / boardH, tuning.BOARD_WIDTH / boardW)
+local board = boardSource:scaledImage(boardScale)
+-- The handle occupies the left of the artwork: center its wooden working
+-- surface on the vegetables rather than centering the handle and board together.
+local boardX = math.floor(tuning.BOARD_LEFT + tuning.BOARD_WIDTH / 2 - boardW * boardScale * 0.585)
+local boardY = tuning.BOARD_TOP
 local bladeX = math.floor(knifeW * tuning.KNIFE_BLADE_ANCHOR_X + 0.5)
 local bladeY = math.floor(knifeH * tuning.KNIFE_BLADE_ANCHOR_Y + 0.5)
 local foodX, foodY = food.x, food.y
@@ -151,9 +159,7 @@ GameAudio.scene("menu")
 local function draw()
     gfx.clear(gfx.kColorWhite)
     gfx.setColor(gfx.kColorBlack)
-    gfx.drawRoundRect(tuning.BOARD_LEFT, tuning.BOARD_TOP, tuning.BOARD_WIDTH, tuning.BOARD_HEIGHT, 8)
-    gfx.drawLine(tuning.BOARD_LEFT + 11, tuning.BOARD_TOP + tuning.BOARD_HEIGHT - 6,
-        tuning.BOARD_LEFT + tuning.BOARD_WIDTH - 12, tuning.BOARD_TOP + tuning.BOARD_HEIGHT - 6)
+    board:draw(boardX, boardY)
     local foodDX, foodDY, knifeDX, knifeDY = transition:offsets()
     local settle = game.cooldown / tuning.FOOD_SETTLE_TIME
     local drawX = foodX + foodDX - (food.behavior == "slippery" and game.slip * settle or 0)
