@@ -1,15 +1,42 @@
 import "CoreLibs/graphics"
 import "code/Chopping"
+import "code/CuttingGeometry"
 
 local pd, gfx = playdate, playdate.graphics
 pd.display.setRefreshRate(50)
 pd.startAccelerometer()
-local carrot = assert(gfx.image.new("images/Carrot"))
-local knife = assert(gfx.image.new("images/Knife")):scaledImage(0.75)
-local _, knifeH = knife:getSize()
-local carrotX, carrotY, boardY = 64, 103, 184
+local tuning = GameplayTuning
+local carrot = assert(gfx.image.new("images/Carrot")):scaledImage(tuning.CARROT_SCALE)
+local carrotW, carrotH = carrot:getSize()
+local knife = assert(gfx.image.new("images/Knife")):rotatedImage(
+    tuning.KNIFE_IMAGE_ROTATION, tuning.KNIFE_IMAGE_SCALE)
+local knifeW, knifeH = knife:getSize()
+local bladeX = math.floor(knifeW * tuning.KNIFE_BLADE_ANCHOR_X + 0.5)
+local bladeY = math.floor(knifeH * tuning.KNIFE_BLADE_ANCHOR_Y + 0.5)
+local carrotX, carrotY, boardY = tuning.CARROT_X, tuning.CARROT_Y, tuning.BOARD_Y
 local game = Chopping.new()
 local pieces, feedback = {}, nil
+local remainingCarrot = carrot
+
+-- Bake parallel diagonal boundaries only when a cut changes the carrot.
+-- This same mask makes the falling slice and remaining food meet exactly.
+local function carrotSection(left, right)
+    local section = gfx.image.new(carrotW, carrotH, gfx.kColorClear)
+    gfx.pushContext(section)
+    for row = 0, carrotH - 1 do
+        local y = carrotY + row
+        local first = left and math.ceil(CuttingGeometry.cutX(left, y) - carrotX) or 0
+        local last = right and math.ceil(CuttingGeometry.cutX(right, y) - carrotX) or carrotW
+        first, last = math.max(0, first), math.min(carrotW, last)
+        if last > first then
+            gfx.setClipRect(first, row, last - first, 1)
+            carrot:draw(0, 0)
+        end
+    end
+    gfx.clearClipRect()
+    gfx.popContext()
+    return section
+end
 local tiltZero, tilt = 0, 0
 local soundOn = true
 local thud = pd.sound.synth.new(pd.sound.kWaveNoise)
@@ -28,6 +55,7 @@ local function message(text)
 end
 local function reset()
     game = Chopping.new()
+    remainingCarrot = carrot
     pieces, feedback, bump = {}, nil, 0
     calibrate()
 end
@@ -45,11 +73,10 @@ local function cut(result)
         return
     end
     local width = result.width
-    local img = gfx.image.new(width, 128, gfx.kColorClear)
-    gfx.pushContext(img)
-    carrot:drawScaled(carrotX - result.x, 0, 2)
-    gfx.popContext()
-    pieces[#pieces + 1] = {image = img, x = result.x, y = carrotY,
+    local oldEdge = result.x + width
+    local img = carrotSection(result.x, oldEdge < tuning.CARROT_BODY_END_X and oldEdge or nil)
+    remainingCarrot = carrotSection(nil, result.x)
+    pieces[#pieces + 1] = {image = img, x = carrotX, y = carrotY,
         vx = 28 + math.random() * 35, vy = -35, age = 0}
     message(string.format("%s  +%d  (%dpx)", result.label, result.points, width))
     if soundOn then ping:playNote(450 + result.points * 5, 0.16, 0.05) end
@@ -61,22 +88,21 @@ local function draw()
     gfx.drawText("CHOP CHOP", 10, 7)
     gfx.drawTextAligned(string.format("%06d", game.score), 390, 7, kTextAlignment.right)
     gfx.drawLine(10, 29, 390, 29)
-    gfx.drawRoundRect(34, boardY, 332, 31, 8)
-    gfx.drawLine(45, boardY + 25, 354, boardY + 25)
-    gfx.setClipRect(carrotX, carrotY, game.edge - carrotX, 128)
-    carrot:drawScaled(carrotX, carrotY, 2)
-    gfx.clearClipRect()
+    gfx.drawRoundRect(34, 106, 332, 109, 8)
+    gfx.drawLine(45, 209, 354, 209)
+    remainingCarrot:draw(carrotX, carrotY)
     for _, p in ipairs(pieces) do p.image:draw(math.floor(p.x), math.floor(p.y)) end
-    local x = math.floor(game.x)
-    local bottom = boardY - game.height * 65
-    if bump > 0 then bottom = bottom + 2 end
+    local x = math.floor(game.x + 0.5)
     if game.height > 0.35 and not game.finished then
-        for y = math.max(115, math.floor(bottom)), boardY - 1, 5 do
-            gfx.drawPixel(x, y)
+        -- Guide is the actual diagonal cut on the board, not a vertical drop.
+        for y = 119, 165, 4 do
+            local guideX = math.floor(CuttingGeometry.cutX(x, y) + 0.5)
+            gfx.drawLine(guideX, y, guideX, y + 1)
         end
-        gfx.fillTriangle(x - 3, boardY + 5, x + 3, boardY + 5, x, boardY + 1)
     end
-    knife:draw(x - 8, math.floor(bottom - knifeH))
+    local knifeX, knifeY = CuttingGeometry.pose(x, game.height)
+    if bump > 0 then knifeY = knifeY + 2 end
+    knife:draw(math.floor(knifeX - bladeX), math.floor(knifeY - bladeY))
     if feedback then
         gfx.drawTextAligned(feedback.text, 200, 49, kTextAlignment.center)
     elseif game.finished then
@@ -88,7 +114,7 @@ local function draw()
             string.format("Raise to %.0f to ready the knife", GameplayTuning.KNIFE_UPPER_ANGLE),
             200, 49, kTextAlignment.center)
     end
-    gfx.drawText(string.format("Cuts %d   Carrots %d", game.cuts, game.carrots), 42, 193)
+    gfx.drawTextAligned(string.format("Cuts %d   Carrots %d", game.cuts, game.carrots), 352, 173, kTextAlignment.right)
     gfx.drawTextAligned(string.format("%d deg", math.floor(pd.getCrankPosition())), 352, 193, kTextAlignment.right)
     gfx.drawTextAligned("Tilt / L R: move   B: center   A: fresh", 200, 222, kTextAlignment.center)
 end
@@ -98,7 +124,7 @@ function pd.update()
     local dt = math.min((now - lastTime) / 1000, 0.05)
     lastTime = now
     if pd.buttonJustPressed(pd.kButtonB) then calibrate(); message("Tilt centered") end
-    if pd.buttonJustPressed(pd.kButtonA) then game:nextCarrot(); feedback = nil end
+    if pd.buttonJustPressed(pd.kButtonA) then game:nextCarrot(); remainingCarrot = carrot; feedback = nil end
     local ax = (pd.readAccelerometer() or tiltZero) - tiltZero
     tilt = tilt + (ax - tilt) * math.min(1, dt * 12)
     local direction = 0
