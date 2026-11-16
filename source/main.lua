@@ -4,6 +4,7 @@ import "code/CuttingGeometry"
 import "code/FoodBitmap"
 import "code/TimedChallenge"
 import "code/ChopAudio"
+import "code/PaperUI"
 
 local pd, gfx = playdate, playdate.graphics
 pd.display.setRefreshRate(50)
@@ -24,6 +25,7 @@ for i, item in ipairs(Foods) do
     local w, h = source:getSize()
     previews[i] = source:scaledImage(math.min(165 / w, 85 / h))
 end
+PaperUI.initialize(Foods, previews)
 local foodImage = foodImages[foodIndex]
 local foodW, foodH = foodImage:getSize()
 local knife = assert(gfx.image.new("images/Knife")):rotatedImage(
@@ -197,7 +199,7 @@ local function draw()
     if feedback then
         gfx.drawTextAligned(feedback.text, 200, 61, kTextAlignment.center)
     elseif game.finished then
-        gfx.drawTextAligned(timed and "Done! Next vegetable..." or food.name .. " done!  A: next", 200, 61, kTextAlignment.center)
+        gfx.drawTextAligned(timed and "Done! Next vegetable..." or food.name .. " done! Take another ingredient", 200, 61, kTextAlignment.center)
     elseif pd.isCrankDocked() then
         gfx.drawTextAligned("Undock crank to chop", 200, 61, kTextAlignment.center)
     else
@@ -208,57 +210,12 @@ local function draw()
     gfx.drawText("Cuts " .. game.cuts, 10, 34)
     gfx.drawTextAligned("Chopped " .. game.foodsChopped, 200, 34, kTextAlignment.center)
     gfx.drawTextAligned(string.format("%d deg", math.floor(pd.getCrankPosition())), 390, 34, kTextAlignment.right)
-    gfx.drawTextAligned(timed and "Tilt / L R: move   B: quit" or "Tilt / L R: move   B: foods   A: fresh", 200, 222, kTextAlignment.center)
+    PaperUI.footer(timed)
 end
 
-local function drawMenu()
-    gfx.clear(gfx.kColorWhite)
-    gfx.setColor(gfx.kColorBlack)
-    gfx.drawTextAligned("CHOP CHOP", 200, 12, kTextAlignment.center)
-    gfx.drawTextAligned("Choose what to chop", 200, 39, kTextAlignment.center)
-    for i, item in ipairs(Foods) do
-        local y = 73 + (i - 1) * 25
-        if i == foodIndex then
-            gfx.fillRoundRect(20, y - 5, 150, 24, 5)
-            gfx.setImageDrawMode(gfx.kDrawModeFillWhite)
-        end
-        gfx.drawText(item.name, 35, y)
-        gfx.setImageDrawMode(gfx.kDrawModeCopy)
-    end
-    previews[foodIndex]:drawCentered(282, 112)
-    gfx.drawTextInRect(Foods[foodIndex].hint, 190, 166, 190, 35)
-    gfx.drawLine(20, 205, 380, 205)
-    gfx.drawTextAligned("D-pad: food   A: chop   B: modes", 200, 218, kTextAlignment.center)
-end
-
-local function drawModes()
-    gfx.clear(gfx.kColorWhite)
-    gfx.setColor(gfx.kColorBlack)
-    gfx.drawTextAligned("CHOP CHOP", 200, 16, kTextAlignment.center)
-    gfx.drawTextAligned("Choose game mode", 200, 47, kTextAlignment.center)
-    local labels = {"Free chopping", "60-second rush"}
-    for i,label in ipairs(labels) do
-        local y=87+(i-1)*44
-        if i==modeChoice then
-            gfx.fillRoundRect(65,y-7,270,34,6)
-            gfx.setImageDrawMode(gfx.kDrawModeFillWhite)
-        end
-        gfx.drawTextAligned(label,200,y,kTextAlignment.center)
-        gfx.setImageDrawMode(gfx.kDrawModeCopy)
-    end
-    gfx.drawTextAligned(modeChoice==1 and "Choose a food. Practice at your pace." or "Random vegetables. Score in 60 seconds!",200,181,kTextAlignment.center)
-    gfx.drawTextAligned("D-pad: choose    A: start",200,218,kTextAlignment.center)
-end
-local function drawResults()
-    gfx.clear(gfx.kColorWhite)
-    gfx.setColor(gfx.kColorBlack)
-    gfx.drawTextAligned("TIME'S UP!",200,30,kTextAlignment.center)
-    gfx.drawRoundRect(55,65,290,118,8)
-    gfx.drawTextAligned("Score: "..game.score,200,84,kTextAlignment.center)
-    gfx.drawTextAligned("Vegetables chopped: "..game.foodsChopped,200,116,kTextAlignment.center)
-    gfx.drawTextAligned("Slices: "..game.cuts,200,146,kTextAlignment.center)
-    gfx.drawTextAligned("A: try again    B: main menu",200,216,kTextAlignment.center)
-end
+local function drawMenu() PaperUI.foods(foodIndex) end
+local function drawModes() PaperUI.modes(modeChoice) end
+local function drawResults() PaperUI.results(game) end
 
 function pd.update()
     local now = pd.getCurrentTimeMilliseconds()
@@ -266,9 +223,10 @@ function pd.update()
     local dt = math.min(elapsed, 0.05)
     lastTime = now
     if mode == "modes" then
-        if pd.buttonJustPressed(pd.kButtonDown) or pd.buttonJustPressed(pd.kButtonRight)
-            or pd.buttonJustPressed(pd.kButtonUp) or pd.buttonJustPressed(pd.kButtonLeft) then
-            modeChoice = 3 - modeChoice
+        if pd.buttonJustPressed(pd.kButtonLeft) then modeChoice=1
+        elseif pd.buttonJustPressed(pd.kButtonRight) then modeChoice=2
+        elseif pd.buttonJustPressed(pd.kButtonDown) or pd.buttonJustPressed(pd.kButtonUp) then
+            modeChoice=3-modeChoice
         end
         if pd.buttonJustPressed(pd.kButtonA) then
             timed = modeChoice == 2
