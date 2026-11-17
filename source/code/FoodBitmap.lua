@@ -6,6 +6,19 @@ local slope = GameplayTuning.CUT_SLOPE
 local unpack = table.unpack
 local mask, inverse, maskW, maskH
 
+-- The SDK can clip the last opaque rows when scaling artwork that touches
+-- its canvas edge. Transparent right/bottom padding preserves the outline
+-- without shifting its origin. Only used while loading assets.
+function FoodBitmap.scaledImage(image,scale)
+    local w,h=image:getSize()
+    local margin=math.max(4,math.ceil(2/scale))
+    local padded=gfx.image.new(w+margin,h+margin,gfx.kColorClear)
+    gfx.pushContext(padded)
+    image:draw(0,0)
+    gfx.popContext()
+    return padded:scaledImage(scale)
+end
+
 -- Read the silhouette once when loading the ingredient, never during a cut.
 -- Potato rows are contiguous; retaining the stepped boundary also preserves
 -- the uneven outline rather than approximating it with a rectangle or ellipse.

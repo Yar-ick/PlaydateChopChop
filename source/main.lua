@@ -27,7 +27,7 @@ local food = Foods[foodIndex]
 local foodImages, previews, foodOutlines, foodAreas = {}, {}, {}, {}
 for i, item in ipairs(Foods) do
     local source = assert(gfx.image.new(item.path))
-    foodImages[i] = source:scaledImage(item.scale)
+    foodImages[i] = FoodBitmap.scaledImage(source,item.scale)
     local outline = FoodBitmap.outline(foodImages[i])
     -- Ignore inedible leaves/stems when deciding whether 5% remains.
     foodOutlines[i] = FoodBitmap.clip(outline, item.startX, item.x, item.y, item, false)
@@ -37,7 +37,7 @@ for i, item in ipairs(Foods) do
     local first,last=FoodBitmap.bounds(foodOutlines[i],item.x,item.y,item)
     item.startX,item.endX=math.max(item.startX,first),last
     local w, h = source:getSize()
-    previews[i] = source:scaledImage(math.min(165 / w, 85 / h))
+    previews[i] = FoodBitmap.scaledImage(source,math.min(165 / w, 85 / h))
 end
 PaperUI.initialize(Foods, previews)
 if PaperUI.setBestScore then PaperUI.setBestScore(profile.bestScore) end

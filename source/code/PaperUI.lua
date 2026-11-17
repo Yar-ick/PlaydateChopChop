@@ -12,6 +12,10 @@ local icons = {
 local modes, ingredients, gameFooters = {}, {}, {}
 local background, logo, results
 local bestScore,helpPages=0,{}
+local menuArt={
+    assert(gfx.image.new("images/MainMenuLeft")),
+    assert(gfx.image.new("images/MainMenuRight")),
+}
 
 local function textCentered(text,x,y,strong)
     gfx.setFont(strong and bold or font)
@@ -68,40 +72,6 @@ local function header(subtitle)
     gfx.drawLine(126,72,268,72)
     gfx.drawLine(139,75,257,75)
 end
-local function freeIllustration(cx,cy)
-    gfx.fillPolygon(cx-32,cy-11,cx+30,cy+2,cx-31,cy+12)
-    gfx.setColor(gfx.kColorWhite)
-    for i=0,3 do gfx.drawLine(cx-22+i*11,cy-7+i*2,cx-18+i*11,cy+3+i) end
-    gfx.setColor(gfx.kColorBlack)
-    gfx.drawLine(cx-33,cy,cx-46,cy-10)
-    gfx.drawLine(cx-33,cy,cx-48,cy)
-    gfx.drawLine(cx-33,cy,cx-44,cy+11)
-    gfx.setColor(gfx.kColorWhite)
-    gfx.fillPolygon(cx+12,cy-28,cx+23,cy-25,cx+13,cy-5,cx+5,cy-9)
-    gfx.setColor(gfx.kColorBlack)
-    gfx.drawLine(cx+12,cy-28,cx+23,cy-25)
-    gfx.drawLine(cx+23,cy-25,cx+13,cy-5)
-    gfx.drawLine(cx+13,cy-5,cx+5,cy-9)
-    gfx.drawLine(cx+5,cy-9,cx+12,cy-28)
-    gfx.setLineWidth(5)
-    gfx.drawLine(cx+6,cy-7,cx-1,cy+8)
-    gfx.setLineWidth(1)
-    gfx.drawLine(cx-46,cy+22,cx+45,cy+22)
-end
-local function clockIllustration(cx,cy)
-    gfx.setLineWidth(2)
-    gfx.drawCircleAtPoint(cx,cy,21)
-    gfx.drawRoundRect(cx-6,cy-30,12,6,2)
-    gfx.drawLine(cx+16,cy-19,cx+21,cy-24)
-    gfx.drawLine(cx,cy,cx,cy-13)
-    gfx.drawLine(cx,cy,cx+11,cy+6)
-    gfx.fillCircleAtPoint(cx,cy,2)
-    gfx.setLineWidth(1)
-    for _,p in ipairs({{-16,0},{16,0},{0,-16},{0,16}}) do gfx.fillRect(cx+p[1]-1,cy+p[2]-1,2,2) end
-    gfx.drawLine(cx-36,cy-10,cx-29,cy-10)
-    gfx.drawLine(cx-39,cy,cx-31,cy)
-    gfx.drawLine(cx-35,cy+10,cx-29,cy+10)
-end
 local function render(draw,w,h)
     local image=gfx.image.new(w or 400,h or 240,gfx.kColorWhite)
     gfx.pushContext(image)
@@ -131,20 +101,8 @@ function PaperUI.initialize(foods,previews)
     end)
     for selected=1,2 do
         modes[selected]=render(function()
-            background:draw(0,0)
-            header("by Nikita Yaroslavtsev")
-            for i=1,2 do
-                local x=18+(i-1)*192
-                local y=i==selected and 84 or 87
-                local cx=x+86
-                paper(x,y,172,111,i==selected)
-                tape(x+15,y-4)
-                textCentered(i==1 and "Free chopping" or "60 sec rush",cx,y+14,true)
-                if i==1 then freeIllustration(cx,y+63) else clockIllustration(cx,y+62) end
-                textCentered(i==1 and "At your pace" or "Random veggies",cx,y+89,false)
-                if i==selected then gfx.fillTriangle(cx-4,y+116,cx+4,y+116,cx,y+112) end
-            end
-            footer({{"dpad","Choose"},{"a","Start"},{"b","Tips"}},208)
+            -- Selection is part of the supplied artwork; keep the boards clear.
+            menuArt[selected]:draw(0,0)
         end)
     end
     local notes={standard="Firm & steady",slippery="Slips after cuts",rolling="Rolls after cuts",
@@ -180,7 +138,7 @@ function PaperUI.initialize(foods,previews)
         paper(43,83,310,115,true)
         tape(57,79)
         gfx.drawLine(63,119,333,119)
-        footer({{"a","retry"},{"b","menu"}},208)
+        footer({{"a","Retry"},{"b","Menu"}},208)
     end)
     local pages={
         {"Crank clockwise to lift. Turn back to cut.","30 degrees makes a full stroke.","Aim with arrows or tilt; lift to move.","Thin = more. Six clean cuts = bonus.","Dock the crank to pause the rush."},
@@ -207,10 +165,11 @@ function PaperUI.setBestScore(score) bestScore=score end
 function PaperUI.modes(choice)
     modes[choice]:draw(0,0)
     if bestScore>0 then
-        local y=choice==2 and 84 or 87
-        gfx.setColor(gfx.kColorWhite);gfx.fillRect(217,y+86,160,21)
+        local label="Best: "..bestScore
+        local w=gfx.getTextSize(label)
+        gfx.setColor(gfx.kColorWhite);gfx.fillRoundRect(200-w/2-5,86,w+10,20,3)
         gfx.setColor(gfx.kColorBlack)
-        textCentered("Best: "..bestScore,296,y+89,false)
+        textCentered(label,200,87,false)
     end
 end
 function PaperUI.foods(choice) ingredients[choice]:draw(0,0) end

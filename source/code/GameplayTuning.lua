@@ -48,9 +48,9 @@ GameplayTuning = {
 
     -- Placement for the current artwork. Keep the original diagonal knife orientation.
     KNIFE_IMAGE_ROTATION = 0,
-    KNIFE_IMAGE_SCALE = 0.5,
+    KNIFE_IMAGE_SCALE = 1.0,
     -- Contact point on the cutting edge, as fractions of image dimensions.
-    KNIFE_BLADE_ANCHOR_X = 0.707,
+    KNIFE_BLADE_ANCHOR_X = 0.807,
     KNIFE_BLADE_ANCHOR_Y = 0.44,
     KNIFE_LIFT = 30,
     -- Forward/back travel along the blade during a full crank stroke (pixels).
