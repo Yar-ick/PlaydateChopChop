@@ -224,9 +224,6 @@ local function draw()
         guide:draw(math.floor(CuttingGeometry.cutX(x,tuning.BOARD_TOP,food)-guideBase+.5),tuning.BOARD_TOP+boardKick)
         gfx.clearClipRect()
     end
-    local knifeX, knifeY = CuttingGeometry.pose(x, game.height, food)
-    knifeY=knifeY+boardKick+effects:recoil()
-    knife:draw(math.floor(knifeX - bladeX + knifeDX), math.floor(knifeY - bladeY + knifeDY))
     if peel and not transition:active() then
         local elapsed = tuning.ONION_LAYER_SECONDS - peel.life
         local sway = math.sin(elapsed * 8) * 4
@@ -248,8 +245,8 @@ local function draw()
             gfx.drawLine(tx, ty - 10, tx + 3, ty - 3)
         end
     end
-    -- Keep raised blade tips and flying slices behind the HUD, so the
-    -- statistics and cutting hint stay readable above the board.
+    -- Keep flying slices behind the HUD. The knife is drawn last so its
+    -- full silhouette stays visible when raised into the text area.
     gfx.setColor(gfx.kColorWhite)
     gfx.fillRect(0, 0, 400, 83)
     gfx.setColor(gfx.kColorBlack)
@@ -296,6 +293,10 @@ local function draw()
     gfx.fillRect(10,26,math.floor(85*game.remainingFraction),2)
     PaperUI.footer(timed)
     if tuning.DEBUG_SHOW_FPS then pd.drawFPS(360,84) end
+    local knifeX, knifeY = CuttingGeometry.pose(x, game.height, food)
+    knifeY=knifeY+boardKick+effects:recoil()
+    gfx.setImageDrawMode(gfx.kDrawModeCopy)
+    knife:draw(math.floor(knifeX - bladeX + knifeDX), math.floor(knifeY - bladeY + knifeDY))
 end
 
 local function drawMenu() GameAudio.scene("menu"); PaperUI.foods(foodIndex) end

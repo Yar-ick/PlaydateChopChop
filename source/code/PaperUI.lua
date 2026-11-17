@@ -131,7 +131,7 @@ function PaperUI.initialize(foods,previews)
     for selected=1,2 do
         modes[selected]=render(function()
             background:draw(0,0)
-            header("by YaroslavtsevNick")
+            header("by Nikita Yaroslavtsev")
             for i=1,2 do
                 local x=18+(i-1)*192
                 local y=i==selected and 84 or 87
@@ -143,7 +143,7 @@ function PaperUI.initialize(foods,previews)
                 textCentered(i==1 and "At your pace" or "Random veggies",cx,y+89,false)
                 if i==selected then gfx.fillTriangle(cx-4,y+116,cx+4,y+116,cx,y+112) end
             end
-            footer({{"dpad","choose"},{"a","start"},{"b","tips"}},208)
+            footer({{"dpad","Choose"},{"a","Start"},{"b","Tips"}},208)
         end)
     end
     local notes={standard="Firm & steady",slippery="Slips after cuts",rolling="Rolls after cuts",
@@ -170,7 +170,7 @@ function PaperUI.initialize(foods,previews)
             art:drawCentered(285,126)
             gfx.drawLine(210,166,359,166)
             textCentered(notes[foods[selected].behavior],285,176,false)
-            footer({{"dpad","choose"},{"a","chop"},{"b","back"}},208)
+            footer({{"dpad","Choose"},{"a","Chop"},{"b","Back"}},208)
         end)
     end
     results=render(function()
@@ -192,13 +192,13 @@ function PaperUI.initialize(foods,previews)
             paper(19,83,360,117,true)
             tape(33,79)
             for i,line in ipairs(lines) do gfx.drawText(line,34,91+(i-1)*21) end
-            footer({{"dpad","page"},{"b","back"}},208)
+            footer({{"dpad","Page"},{"b","Back"}},208)
         end)
     end
     for _,timed in ipairs({false,true}) do
         gameFooters[timed]=render(function()
-            footer(timed and {{"dpad","move / tilt"},{"b","quit"}}
-                or {{"dpad","move / tilt"},{"b","foods"},{"a","fresh"}},0)
+            footer(timed and {{"dpad","Move / Tilt"},{"b","Quit"}}
+                or {{"dpad","Move / Tilt"},{"b","Foods"},{"a","Fresh"}},0)
         end,400,24)
     end
 end
