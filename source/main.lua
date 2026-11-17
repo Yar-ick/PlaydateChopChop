@@ -50,9 +50,12 @@ local boardSource = assert(gfx.image.new("images/CuttingBoard"))
 local boardW, boardH = boardSource:getSize()
 local boardScale = math.min(tuning.BOARD_HEIGHT / boardH, tuning.BOARD_WIDTH / boardW)
 local board = boardSource:scaledImage(boardScale)
--- The handle occupies the left of the artwork: center its wooden working
--- surface on the vegetables rather than centering the handle and board together.
-local boardX = math.floor(tuning.BOARD_LEFT + tuning.BOARD_WIDTH / 2 - boardW * boardScale * 0.585)
+-- Center the complete artwork, including its handle. Translate the food and
+-- blade by the same amount to preserve their alignment with the board face.
+local scaledBoardW = board:getSize()
+local boardX = math.floor((400-scaledBoardW)/2)
+local playfieldDX = boardX-math.floor(tuning.BOARD_LEFT+tuning.BOARD_WIDTH/2-boardW*boardScale*0.585)
+local playfieldDY = tuning.PLAYFIELD_OFFSET_Y
 -- Cache the full-height guide and white keyline. Either slope direction
 -- remains inside the image when adjusting the blade geometry for playtests.
 local guideMin=math.min(0,tuning.CUT_SLOPE*tuning.BOARD_HEIGHT)
@@ -205,7 +208,8 @@ local function draw()
     gfx.clear(gfx.kColorWhite)
     gfx.setColor(gfx.kColorBlack)
     local boardKick=effects:boardOffset()
-    board:draw(boardX, boardY+boardKick)
+    board:draw(boardX, boardY+boardKick+playfieldDY)
+    gfx.setDrawOffset(playfieldDX,playfieldDY)
     local foodDX, foodDY, knifeDX, knifeDY = transition:offsets()
     local settle = game.cooldown / tuning.FOOD_SETTLE_TIME
     local drawX = foodX + foodDX - (food.behavior == "slippery" and game.slip * settle or 0)
@@ -234,6 +238,7 @@ local function draw()
         gfx.drawEllipseInRect(peel.edge - 10 + sway, food.referenceY - 23, 22, 43)
         gfx.drawEllipseInRect(peel.edge - 6 + sway, food.referenceY - 20, 14, 37)
         peel.image:draw(peel.x + sway + 4, peel.y - elapsed * 3)
+        gfx.setDrawOffset(0,0)
         for i = 1, 3 do
             local ty = 65 + ((elapsed * 65 + i * 39) % 125)
             local tx = i % 2 == 0 and 372 or 22
@@ -247,6 +252,7 @@ local function draw()
     end
     -- Keep flying slices behind the HUD. The knife is drawn last so its
     -- full silhouette stays visible when raised into the text area.
+    gfx.setDrawOffset(0,0)
     gfx.setColor(gfx.kColorWhite)
     gfx.fillRect(0, 0, 400, 83)
     gfx.setColor(gfx.kColorBlack)
@@ -296,7 +302,9 @@ local function draw()
     local knifeX, knifeY = CuttingGeometry.pose(x, game.height, food)
     knifeY=knifeY+boardKick+effects:recoil()
     gfx.setImageDrawMode(gfx.kDrawModeCopy)
+    gfx.setDrawOffset(playfieldDX,playfieldDY)
     knife:draw(math.floor(knifeX - bladeX + knifeDX), math.floor(knifeY - bladeY + knifeDY))
+    gfx.setDrawOffset(0,0)
 end
 
 local function drawMenu() GameAudio.scene("menu"); PaperUI.foods(foodIndex) end

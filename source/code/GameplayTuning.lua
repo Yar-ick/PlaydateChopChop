@@ -69,6 +69,8 @@ GameplayTuning = {
     BOARD_WIDTH = 332,
     BOARD_HEIGHT = 109,
     BOARD_Y = 152,
+    PLAYFIELD_OFFSET_Y = -8,
+    GAME_FOOTER_Y = 208,
 
     -- Ingredient mechanics. Speed is full knife travels per second.
     TOMATO_MAX_SPEED = 3,

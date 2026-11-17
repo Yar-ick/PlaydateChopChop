@@ -1,4 +1,5 @@
 import "CoreLibs/graphics"
+import "code/GameplayTuning"
 PaperUI = {}
 local gfx = playdate.graphics
 local font = gfx.getFont()
@@ -214,7 +215,7 @@ function PaperUI.modes(choice)
 end
 function PaperUI.foods(choice) ingredients[choice]:draw(0,0) end
 function PaperUI.help(page) helpPages[page]:draw(0,0) end
-function PaperUI.footer(timed) gameFooters[timed]:draw(0,216) end
+function PaperUI.footer(timed) gameFooters[timed]:draw(0,GameplayTuning.GAME_FOOTER_Y) end
 function PaperUI.feedback(text,perfect)
     gfx.setFont(perfect and bold or font)
     local w=gfx.getTextSize(text)
