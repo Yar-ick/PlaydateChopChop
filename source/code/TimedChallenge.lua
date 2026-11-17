@@ -7,15 +7,20 @@ function TimedChallenge.new(random)
 end
 function TimedChallenge:pickFood(count)
     assert(count >= 1, "At least one food is required")
-    local excluded = self.lastFood
-    local nextFood
-    if count == 1 then nextFood = 1
-    elseif excluded and excluded <= count then
-        -- Uniformly choose among the other foods, without retry loops.
-        nextFood = self.random(1, count - 1)
-        if nextFood >= excluded then nextFood = nextFood + 1 end
-    else nextFood = self.random(1, count) end
-    self.lastFood = nextFood
+    if not self.bag or self.bagCount~=count or #self.bag==0 then
+        self.bag,self.bagCount={},count
+        for i=1,count do self.bag[i]=i end
+        for i=count,2,-1 do
+            local j=self.random(1,i)
+            self.bag[i],self.bag[j]=self.bag[j],self.bag[i]
+        end
+        -- A full bag guarantees variety; its seam cannot repeat the last food.
+        if count>1 and self.bag[count]==self.lastFood then
+            self.bag[count],self.bag[1]=self.bag[1],self.bag[count]
+        end
+    end
+    local nextFood=table.remove(self.bag)
+    self.lastFood=nextFood
     return nextFood
 end
 function TimedChallenge:foodCompleted()

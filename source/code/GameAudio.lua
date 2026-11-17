@@ -2,6 +2,9 @@ import "code/GameplayTuning"
 GameAudio = {}
 local pd, t = playdate, GameplayTuning
 local enabled, paused, scene = true, false, nil
+local duckLevel,lastSecond=0,nil
+local cue=pd.sound.synth.new(pd.sound.kWaveSine)
+cue:setADSR(0,.025,0,.035)
 local selectSound = assert(pd.sound.sampleplayer.new("sounds/SelectButton"))
 selectSound:setVolume(t.SELECT_SOUND_VOLUME)
 local tracks = {
@@ -21,6 +24,7 @@ end
 function GameAudio.scene(nextScene)
     if scene==nextScene then return end
     scene=nextScene
+    lastSecond=nil
     for name,track in pairs(tracks) do
         track.target=name==scene and 1 or 0
         if track.target>0 and enabled and not paused and not track.player:isPlaying() then
@@ -31,16 +35,18 @@ function GameAudio.scene(nextScene)
 end
 function GameAudio.update(dt)
     if paused or not enabled then return end
+    duckLevel=duckLevel*math.exp(-dt*3/math.max(.01,t.MUSIC_DUCK_SECONDS))
     local step=dt/math.max(.01,t.MUSIC_FADE_SECONDS)
     for name,track in pairs(tracks) do
         if track.gain<track.target then track.gain=math.min(track.target,track.gain+step)
         elseif track.gain>track.target then track.gain=math.max(track.target,track.gain-step) end
-        track.player:setVolume(track.gain*(name=="menu" and t.MENU_MUSIC_VOLUME or t.GAME_MUSIC_VOLUME))
+        track.player:setVolume(track.gain*(name=="menu" and t.MENU_MUSIC_VOLUME or t.GAME_MUSIC_VOLUME*(1-duckLevel)))
         if track.gain==0 and track.target==0 and track.player:isPlaying() then track.player:stop() end
     end
 end
 function GameAudio.setEnabled(value)
     enabled=value
+    if not value then cue:stop() end
     selectSound:stop()
     for _,track in pairs(tracks) do
         if not enabled then track.player:stop();track.gain=0
@@ -49,6 +55,7 @@ function GameAudio.setEnabled(value)
 end
 function GameAudio.pause()
     paused=true
+    cue:stop()
     selectSound:stop()
     for _,track in pairs(tracks) do track.player:pause() end
 end
@@ -62,6 +69,24 @@ function GameAudio.resume()
     end
 end
 function GameAudio.stop()
+    cue:stop()
     selectSound:stop()
     for _,track in pairs(tracks) do track.player:stop();track.gain=0 end
+end
+
+function GameAudio.duck(amount)
+    if enabled and not paused then
+        duckLevel=math.max(duckLevel,amount)
+        -- Let the impact through immediately, then release in update().
+        tracks.game.player:setVolume(tracks.game.gain*t.GAME_MUSIC_VOLUME*(1-duckLevel))
+    end
+end
+function GameAudio.countdown(second)
+    if second~=lastSecond then
+        lastSecond=second
+        if enabled and not paused and second>0 and second<=5 then cue:playNote(880,.13,.035) end
+    end
+end
+function GameAudio.finish()
+    if enabled and not paused then cue:playNote(440,.16,.08) end
 end

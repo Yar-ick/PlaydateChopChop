@@ -1,4 +1,28 @@
 GameplayTuning = {
+    -- Feel and progression. All values are intentionally exposed for playtests.
+    AIM_FINE_SPEED = 38,
+    AIM_MAX_SPEED = 125,
+    AIM_FINE_SECONDS = 0.14,
+    AIM_ACCEL_SECONDS = 0.25,
+    TILT_DEADZONE = 0.045,
+    TILT_FULL_SCALE = 0.38,
+    TILT_FILTER_SPEED = 14,
+    DEBUG_SHOW_FPS = false,
+    VEGETABLE_COMPLETE_BONUS = 100,
+    POTATO_ROLL_FRAMES = 4,
+    PERFECT_SLICE_WIDTH = 4,
+    CLEAN_SLICE_WIDTH = 12,
+    COMBO_STEP = 6,
+    MAX_COMBO_MULTIPLIER = 2,
+    RANK_COOK_SCORE = 2500,
+    RANK_CHEF_SCORE = 6500,
+    RANK_MASTER_SCORE = 12000,
+    MUSIC_DUCK_SECONDS = 0.14,
+    MAX_SLICE_EFFECTS = 8,
+    MAX_CRUMBS = 20,
+    SLICE_LIFETIME = 0.85,
+    CUT_FEEDBACK_SECONDS = 0.85,
+    CUT_FEEDBACK_PRIORITY_SECONDS = 0.25,
     SELECT_SOUND_VOLUME = 0.7,
     MENU_MUSIC_VOLUME = 0.28,
     GAME_MUSIC_VOLUME = 0.20,
@@ -16,7 +40,10 @@ GameplayTuning = {
     -- Relative travel: clockwise raises, counterclockwise lowers. Excess
     -- movement at either stop is discarded, so reversal responds immediately.
     KNIFE_TRAVEL_ANGLE = 30,
-    KNIFE_READY_HEIGHT = 0.72,
+    -- Heights are fractions: 0 = down on the board, 1 = fully raised.
+    KNIFE_READY_HEIGHT = 0.62,
+    KNIFE_REPOSITION_HEIGHT = 0.38,
+    KNIFE_GUIDE_MIN_HEIGHT = 0.35,
     FOOD_COMPLETION_FRACTION = 0.05,
 
     -- Placement for the current artwork. Keep the original diagonal knife orientation.
@@ -45,6 +72,8 @@ GameplayTuning = {
 
     -- Ingredient mechanics. Speed is full knife travels per second.
     TOMATO_MAX_SPEED = 3,
+    TOMATO_CONTACT_HEIGHT = 0.65,
+    TOMATO_SPEED_FILTER = 40,
     TOMATO_CRUSH_MULTIPLIER = 0.35,
     CUCUMBER_SLIP_MIN = 4,
     CUCUMBER_SLIP_MAX = 10,

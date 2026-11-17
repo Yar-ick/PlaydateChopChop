@@ -12,6 +12,9 @@ function ChopAudio.play(foodName, crushed)
     local player = players[foodName]
     if not player then return false end
     player:stop()
-    player:play(1, 1 + (math.random() - 0.5) * GameplayTuning.CHOP_PITCH_VARIATION)
+    local rate=foodName=="Tomato" and 1 or 1+(math.random()-.5)*GameplayTuning.CHOP_PITCH_VARIATION
+    player:play(1,rate)
     return true
 end
+
+function ChopAudio.stop() for _,player in pairs(players) do player:stop() end end

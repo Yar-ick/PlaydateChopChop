@@ -10,6 +10,7 @@ local icons = {
 }
 local modes, ingredients, gameFooters = {}, {}, {}
 local background, logo, results
+local bestScore,helpPages=0,{}
 
 local function textCentered(text,x,y,strong)
     gfx.setFont(strong and bold or font)
@@ -142,7 +143,7 @@ function PaperUI.initialize(foods,previews)
                 textCentered(i==1 and "At your pace" or "Random veggies",cx,y+89,false)
                 if i==selected then gfx.fillTriangle(cx-4,y+116,cx+4,y+116,cx,y+112) end
             end
-            footer({{"dpad","choose"},{"a","start"}},208)
+            footer({{"dpad","choose"},{"a","start"},{"b","tips"}},208)
         end)
     end
     local notes={standard="Firm & steady",slippery="Slips after cuts",rolling="Rolls after cuts",
@@ -177,10 +178,23 @@ function PaperUI.initialize(foods,previews)
         header("Time's up! / 60 sec rush")
         paper(43,83,310,115,true)
         tape(57,79)
-        gfx.drawLine(63,121,333,121)
-        gfx.drawLine(63,155,333,155)
+        gfx.drawLine(63,119,333,119)
         footer({{"a","retry"},{"b","menu"}},208)
     end)
+    local pages={
+        {"Crank clockwise to lift. Turn back to cut.","30 degrees makes a full stroke.","Aim with arrows or tilt; lift to move.","Thin = more. Six clean cuts = bonus.","Dock the crank to pause the rush."},
+        {"Carrot - firm and steady.","Cucumber - slips after a cut.","Potato - rolls to a new edge.","Tomato - gentle strokes, please.","Onion - loose skins hide the edge."},
+    }
+    for index,lines in ipairs(pages) do
+        helpPages[index]=render(function()
+            background:draw(0,0)
+            header(index==1 and "Kitchen notes / controls" or "Kitchen notes / ingredients")
+            paper(19,83,360,117,true)
+            tape(33,79)
+            for i,line in ipairs(lines) do gfx.drawText(line,34,91+(i-1)*21) end
+            footer({{"dpad","page"},{"b","back"}},208)
+        end)
+    end
     for _,timed in ipairs({false,true}) do
         gameFooters[timed]=render(function()
             footer(timed and {{"dpad","move / tilt"},{"b","quit"}}
@@ -188,17 +202,48 @@ function PaperUI.initialize(foods,previews)
         end,400,24)
     end
 end
-function PaperUI.modes(choice) modes[choice]:draw(0,0) end
+function PaperUI.setBestScore(score) bestScore=score end
+function PaperUI.modes(choice)
+    modes[choice]:draw(0,0)
+    if bestScore>0 then
+        local y=choice==2 and 84 or 87
+        gfx.setColor(gfx.kColorWhite);gfx.fillRect(217,y+86,160,21)
+        gfx.setColor(gfx.kColorBlack)
+        textCentered("Best: "..bestScore,296,y+89,false)
+    end
+end
 function PaperUI.foods(choice) ingredients[choice]:draw(0,0) end
+function PaperUI.help(page) helpPages[page]:draw(0,0) end
 function PaperUI.footer(timed) gameFooters[timed]:draw(0,216) end
-function PaperUI.results(game)
+function PaperUI.feedback(text,perfect)
+    gfx.setFont(perfect and bold or font)
+    local w=gfx.getTextSize(text)
+    w=math.min(382,w+16)
+    if perfect then
+        gfx.setColor(gfx.kColorBlack);gfx.fillRoundRect((400-w)/2,56,w,25,4)
+        gfx.setImageDrawMode(gfx.kDrawModeFillWhite)
+    end
+    gfx.drawTextAligned(text,200,61,kTextAlignment.center)
+    gfx.setImageDrawMode(gfx.kDrawModeCopy);gfx.setFont(font)
+end
+function PaperUI.results(game,record)
     results:draw(0,0)
-    gfx.drawText("Score",64,96)
-    gfx.drawText("Vegetables",64,131)
-    gfx.drawText("Slices",64,165)
+    local stats=game.progress
+    local precision=stats and stats:precision() or 0
+    local streak=stats and stats.bestCombo or 0
+    local rank=stats and stats:rank() or "Apprentice"
+    if record then
+        gfx.setColor(gfx.kColorWhite);gfx.fillRect(10,48,380,21)
+        gfx.setColor(gfx.kColorBlack)
+        textCentered(record.newRecord and "Time's up! New personal best!" or "Time's up! Best: "..record.best,200,49,false)
+    end
+    gfx.drawText("Score",64,95)
     gfx.setFont(bold)
-    gfx.drawTextAligned(tostring(game.score),331,96,kTextAlignment.right)
-    gfx.drawTextAligned(tostring(game.foodsChopped),331,131,kTextAlignment.right)
-    gfx.drawTextAligned(tostring(game.cuts),331,165,kTextAlignment.right)
+    gfx.drawTextAligned(tostring(game.score),331,95,kTextAlignment.right)
     gfx.setFont(font)
+    gfx.drawText("Veg "..game.foodsChopped,64,128)
+    gfx.drawTextAligned("Cuts "..game.cuts,331,128,kTextAlignment.right)
+    gfx.drawText("Clean "..precision.."%",64,151)
+    gfx.drawTextAligned("Streak "..streak,331,151,kTextAlignment.right)
+    textCentered(rank,200,175,true)
 end

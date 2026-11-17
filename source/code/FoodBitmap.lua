@@ -162,3 +162,28 @@ function FoodBitmap.area(points)
     end
     return math.abs(area) * 0.5
 end
+function FoodBitmap.bounds(points,x,y,food)
+    local first,last=math.huge,-math.huge
+    for i=1,#points,2 do
+        local p=x+points[i]-slope*(y+points[i+1]-food.referenceY)
+        first,last=math.min(first,p),math.max(last,p)
+    end
+    if #points==0 then return food.startX,food.startX+2 end
+    return math.floor(first),math.ceil(last)
+end
+-- Tight slice sprites reduce the memory and rotation work for falling pieces.
+function FoodBitmap.crop(image,points)
+    local w,h=image:getSize()
+    if #points<6 then return image,0,0 end
+    local x1,y1,x2,y2=w,h,0,0
+    for i=1,#points,2 do
+        x1,y1=math.min(x1,points[i]),math.min(y1,points[i+1])
+        x2,y2=math.max(x2,points[i]),math.max(y2,points[i+1])
+    end
+    x1,y1=math.max(0,math.floor(x1)-1),math.max(0,math.floor(y1)-1)
+    x2,y2=math.min(w,math.ceil(x2)+1),math.min(h,math.ceil(y2)+1)
+    if x2<=x1 or y2<=y1 then return image,0,0 end
+    local cropped=gfx.image.new(x2-x1,y2-y1,gfx.kColorClear)
+    gfx.pushContext(cropped);image:draw(-x1,-y1);gfx.popContext()
+    return cropped,x1,y1
+end
