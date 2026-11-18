@@ -8,6 +8,16 @@ GameplayTuning = {
     TILT_FULL_SCALE = 0.38,
     TILT_FILTER_SPEED = 14,
     DEBUG_SHOW_FPS = false,
+
+    -- Menu knife tip positions on the illustrated boards.
+    MENU_KNIFE_LEFT_X = 117,
+    MENU_KNIFE_RIGHT_X = 245,
+    MENU_KNIFE_Y = 150,
+    MENU_KNIFE_SCALE = 0.75,
+    MENU_KNIFE_BOB_PIXELS = 6,
+    MENU_KNIFE_BOB_SECONDS = 1.1,
+    MENU_KNIFE_GLIDE_SECONDS = 0.3,
+
     VEGETABLE_COMPLETE_BONUS = 100,
     POTATO_ROLL_FRAMES = 4,
     PERFECT_SLICE_WIDTH = 4,

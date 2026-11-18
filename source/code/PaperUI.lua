@@ -1,5 +1,6 @@
 import "CoreLibs/graphics"
 import "code/GameplayTuning"
+import "code/MenuKnife"
 PaperUI = {}
 local gfx = playdate.graphics
 local font = gfx.getFont()
@@ -9,13 +10,13 @@ local icons = {
     b = assert(gfx.image.new("images/B_Button")),
     dpad = assert(gfx.image.new("images/DPadLeftRight")),
 }
-local modes, ingredients, gameFooters = {}, {}, {}
+local ingredients, gameFooters = {}, {}
 local background, logo, results
 local bestScore,helpPages=0,{}
-local menuArt={
-    assert(gfx.image.new("images/MainMenuLeft")),
-    assert(gfx.image.new("images/MainMenuRight")),
-}
+local menuArt=assert(gfx.image.new("images/MainMenu"))
+local menuKnifeImage=assert(gfx.image.new("images/Knife")):rotatedImage(0,GameplayTuning.MENU_KNIFE_SCALE)
+local menuKnifeW,menuKnifeH=menuKnifeImage:getSize()
+local menuKnifeMotion=MenuKnife.new()
 
 local function textCentered(text,x,y,strong)
     gfx.setFont(strong and bold or font)
@@ -99,12 +100,6 @@ function PaperUI.initialize(foods,previews)
         gfx.drawLine(12,234,385,233)
         for x=22,380,29 do gfx.drawPixel(x,8);gfx.drawPixel(x+5,231) end
     end)
-    for selected=1,2 do
-        modes[selected]=render(function()
-            -- Selection is part of the supplied artwork; keep the boards clear.
-            menuArt[selected]:draw(0,0)
-        end)
-    end
     local notes={standard="Firm & steady",slippery="Slips after cuts",rolling="Rolls after cuts",
         soft="Gentle cuts only",layered="Mind the layers"}
     for selected=1,#foods do
@@ -162,8 +157,8 @@ function PaperUI.initialize(foods,previews)
     end
 end
 function PaperUI.setBestScore(score) bestScore=score end
-function PaperUI.modes(choice)
-    modes[choice]:draw(0,0)
+function PaperUI.modes(choice,dt)
+    menuArt:draw(0,0)
     if bestScore>0 then
         local label="Best: "..bestScore
         local w=gfx.getTextSize(label)
@@ -171,6 +166,10 @@ function PaperUI.modes(choice)
         gfx.setColor(gfx.kColorBlack)
         textCentered(label,200,87,false)
     end
+    local x,y=menuKnifeMotion:update(choice,dt)
+    gfx.setImageDrawMode(gfx.kDrawModeCopy)
+    -- Anchor the blade tip to the food; the handle extends below the screen.
+    menuKnifeImage:draw(math.floor(x-menuKnifeW*.96+.5),math.floor(y-menuKnifeH*.02+.5))
 end
 function PaperUI.foods(choice) ingredients[choice]:draw(0,0) end
 function PaperUI.help(page) helpPages[page]:draw(0,0) end

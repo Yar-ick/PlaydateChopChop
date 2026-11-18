@@ -308,7 +308,7 @@ local function draw()
 end
 
 local function drawMenu() GameAudio.scene("menu"); PaperUI.foods(foodIndex) end
-local function drawModes() GameAudio.scene("menu"); PaperUI.modes(modeChoice) end
+local function drawModes(dt) GameAudio.scene("menu"); PaperUI.modes(modeChoice,dt) end
 local function drawResults() GameAudio.scene("menu"); PaperUI.results(game,{best=profile.bestScore,newRecord=newRecord}) end
 local function drawHelp() GameAudio.scene("menu");PaperUI.help(helpPage) end
 
@@ -324,7 +324,7 @@ function pd.update()
             helpPage=3-helpPage;GameAudio.select()
         end
         if pd.buttonJustPressed(pd.kButtonA) or pd.buttonJustPressed(pd.kButtonB) then
-            GameAudio.select();mode="modes";drawModes()
+            GameAudio.select();mode="modes";drawModes(dt)
         else drawHelp() end
         return
     end
@@ -343,17 +343,17 @@ function pd.update()
             GameAudio.select()
             timed = modeChoice == 2
             if timed then reset(); draw() else mode = "menu"; drawMenu() end
-        else drawModes() end
+        else drawModes(dt) end
         return
     end
     if mode == "results" then
         if pd.buttonJustPressed(pd.kButtonA) then GameAudio.select(); reset(); draw()
-        elseif pd.buttonJustPressed(pd.kButtonB) then GameAudio.select(); mode = "modes"; drawModes()
+        elseif pd.buttonJustPressed(pd.kButtonB) then GameAudio.select(); mode = "modes"; drawModes(dt)
         else drawResults() end
         return
     end
     if mode == "menu" then
-        if pd.buttonJustPressed(pd.kButtonB) then GameAudio.select(); mode = "modes"; drawModes(); return end
+        if pd.buttonJustPressed(pd.kButtonB) then GameAudio.select(); mode = "modes"; drawModes(dt); return end
         local step = 0
         if pd.buttonJustPressed(pd.kButtonDown) or pd.buttonJustPressed(pd.kButtonRight) then step = 1 end
         if pd.buttonJustPressed(pd.kButtonUp) or pd.buttonJustPressed(pd.kButtonLeft) then step = -1 end
@@ -386,7 +386,7 @@ function pd.update()
         GameAudio.select()
         mode = timed and "modes" or "menu"
         game.armed = false
-        if timed then drawModes() else drawMenu() end
+        if timed then drawModes(dt) else drawMenu() end
         return
     end
     if not timed and not transition:active() and pd.buttonJustPressed(pd.kButtonA) then
